@@ -276,8 +276,8 @@ async function createComprovantePDF(dados, statusData) {
             const logoImg = await loadImage('logo.png');
             
             // Ajuste inteligente de tamanho (Mantendo proporção)
-            const maxWidth = 50;
-            const maxHeight = 25;
+            const maxWidth = 100;
+            const maxHeight = 100;
             let finalWidth = logoImg.width;
             let finalHeight = logoImg.height;
             const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
