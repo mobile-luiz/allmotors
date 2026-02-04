@@ -1,0 +1,468 @@
+:root { 
+    --red: #cc0000; 
+    --dark: #1a1a1a; 
+    --border: #ccc; 
+}
+
+body { 
+    font-family: Arial, sans-serif; 
+    margin: 0; 
+    padding: 10px; 
+    background: #f0f0f0; 
+}
+
+.page { 
+    background: white; 
+    max-width: 950px; 
+    margin: auto; 
+    padding: 20px; 
+    box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+}
+
+.header-img { 
+    width: 100%; 
+    height: auto; 
+    margin-bottom: 20px; 
+    max-width: 100%; 
+}
+
+/* Estilos Aumentados para Informações do Cliente */
+.client-info-container { 
+    border: 2px solid var(--border); 
+    border-radius: 4px; 
+    margin-bottom: 20px; 
+    overflow: hidden; 
+}
+
+.section-title { 
+    background: #eeeeee; 
+    padding: 10px; 
+    font-size: 16px; 
+    font-weight: bold; 
+    text-align: center; 
+    text-transform: uppercase; 
+    border-bottom: 2px solid var(--border); 
+}
+
+.client-info-grid { 
+    display: grid; 
+    grid-template-columns: repeat(8, 1fr); 
+    gap: 0; 
+}
+
+.field { 
+    display: flex; 
+    flex-direction: column; 
+    border-right: 1px solid #ddd; 
+    border-bottom: 1px solid #ddd; 
+    padding: 8px; 
+}
+
+.field:nth-child(8n) { 
+    border-right: none; 
+}
+
+.field label { 
+    font-size: 12px; 
+    font-weight: bold; 
+    color: #333; 
+    margin-bottom: 4px; 
+    text-transform: uppercase;
+}
+
+.field input { 
+    border: none; 
+    font-size: 15px; 
+    outline: none; 
+    background: transparent; 
+    width: 100%; 
+    font-weight: normal;
+    color: #000;
+}
+
+h2 { 
+    background: var(--dark); 
+    color: white; 
+    font-size: 13px; 
+    padding: 6px 10px; 
+    margin: 15px 0 5px 0; 
+    border-radius: 2px; 
+    text-transform: uppercase; 
+}
+
+.grid { 
+    display: grid; 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 2px 15px; 
+    padding: 0 10px; 
+}
+
+.item { 
+    display: flex; 
+    align-items: center; 
+    padding: 8px 0; 
+    border-bottom: 1px solid #f9f9f9; 
+    font-size: 11px; 
+}
+
+.item-text {
+    flex: 1;
+    margin-right: 10px;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 5px;
+}
+
+.checkbox-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.checkbox-label {
+    font-size: 9px;
+    color: #666;
+    text-align: center;
+}
+
+.status-checkbox {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #ddd;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.2s;
+    background: white;
+}
+
+.status-checkbox:hover {
+    transform: scale(1.1);
+}
+
+.status-checkbox.checked {
+    border-color: #333;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
+.checkbox-ok {
+    border-color: #4CAF50;
+    color: #4CAF50;
+}
+
+.checkbox-ok.checked {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.checkbox-atencao {
+    border-color: #FFC107;
+    color: #FFC107;
+}
+
+.checkbox-atencao.checked {
+    background-color: #FFC107;
+    color: black;
+}
+
+.checkbox-critico {
+    border-color: #F44336;
+    color: #F44336;
+}
+
+.checkbox-critico.checked {
+    background-color: #F44336;
+    color: white;
+}
+
+.status-summary {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.status-count {
+    background: #333;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.status-count.ok { 
+    background: #4CAF50; 
+}
+
+.status-count.atencao { 
+    background: #FFC107; 
+    color: black; 
+}
+
+.status-count.critico { 
+    background: #F44336; 
+}
+
+.footer { 
+    margin-top: 30px; 
+    font-size: 10px; 
+    text-align: center; 
+    color: #888; 
+    border-top: 1px solid #eee; 
+    padding-top: 10px; 
+}
+
+.no-print { 
+    text-align: center; 
+    margin: 20px; 
+}
+
+.button-container {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+
+button { 
+    padding: 12px 30px; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-weight: bold; 
+    font-size: 14px; 
+    width: 100%;
+    max-width: 300px;
+}
+
+.btn-print { 
+    background: var(--red); 
+}
+
+.btn-save { 
+    background: #28a745; 
+}
+
+.btn-clear { 
+    background: #6c757d; 
+}
+
+/* Modal de confirmação */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 15% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+    display: none;
+}
+
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+    display: none;
+}
+
+/* MEDIA QUERIES PARA RESPONSIVIDADE */
+@media (max-width: 768px) {
+    body { padding: 5px; }
+    .page { padding: 15px 10px; }
+    
+    .grid {
+        grid-template-columns: 1fr;
+        gap: 5px;
+        padding: 0 5px;
+    }
+    
+    .item {
+        padding: 10px 0;
+        font-size: 13px;
+    }
+    
+    h2 {
+        font-size: 14px;
+        padding: 8px 10px;
+        margin: 20px 0 8px 0;
+    }
+    
+    .client-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .field:nth-child(8n) { border-right: 1px solid #ddd; }
+    .field:nth-child(2n) { border-right: none; }
+    
+    .checkbox-group {
+        gap: 3px;
+    }
+    
+    .status-checkbox {
+        width: 22px;
+        height: 22px;
+        font-size: 9px;
+    }
+    
+    .checkbox-label {
+        font-size: 8px;
+    }
+    
+    .button-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    button {
+        width: 90%;
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .client-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .field {
+        border-right: none !important;
+    }
+    
+    .item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .item-text {
+        margin-right: 0;
+        width: 100%;
+    }
+    
+    .checkbox-group {
+        align-self: center;
+    }
+    
+    .button-container button {
+        width: 100%;
+    }
+}
+
+@media print {
+    .no-print { display: none; }
+    body { background: white; padding: 0; }
+    .page { box-shadow: none; max-width: 100%; padding: 10px; }
+    .client-info-container { border: 2px solid #000; }
+    
+    .status-checkbox.checked {
+        border: 2px solid #333 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+
+/* Adicione isso ao seu style.css */
+
+.btn-pdf {
+    background: #2196F3 !important;
+    padding: 12px 30px !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-weight: bold !important;
+    font-size: 14px !important;
+    width: 100% !important;
+    max-width: 300px !important;
+}
+
+.btn-pdf:hover {
+    background: #1976D2 !important;
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+/* Adicione efeito hover para todos os botões */
+.btn-print:hover,
+.btn-save:hover,
+.btn-clear:hover {
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-print:hover {
+    box-shadow: 0 4px 8px rgba(204, 0, 0, 0.3);
+}
+
+.btn-save:hover {
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+.btn-clear:hover {
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+}
+
+/* Ajustes para os botões no mobile */
+@media (max-width: 768px) {
+    .button-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .button-container button {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 10px;
+    }
+}
