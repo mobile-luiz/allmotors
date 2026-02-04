@@ -314,13 +314,14 @@ async function createComprovantePDF(dados) {
         const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
 
         // DESTAQUE: NOME E PLACA (Os primeiros campos da lista)
-        const campos = [
-            { c1: ['CLIENTE:', (dados.nomeCliente || 'NÃO INFORMADO').toUpperCase()], c2: ['PLACA:', (dados.placa || '---').toUpperCase()], c3: ['Nº ORDEM:', dados.numOrdem] },
-            { c1: ['CPF:', dados.cpf], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
-            { c1: ['Modelo:', dados.modelo], c2: ['Ano:', dados.ano], c3: ['Fabricante:', dados.fabricante] },
-            { c1: ['KM:', dados.km], c2: ['Combustível:', dados.combustivel], c3: ['Cor:', dados.cor] },
-            { c1: ['Motor:', dados.motor], c2: ['Data Entrada:', dataEntradaFormatada], c3: ['Tanque:', dados.tanque] }
-        ];
+       const campos = [
+    { c1: ['CLIENTE:', (dados.nomeCliente || 'NÃO INFORMADO').toUpperCase()], c2: ['PLACA:', (dados.placa || '---').toUpperCase()], c3: ['Nº ORDEM:', dados.numOrdem] },
+    { c1: ['CPF:', dados.cpf], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
+    { c1: ['Fabricante:', dados.fabricante], c2: ['Modelo:', dados.modelo], c3: ['Ano:', dados.ano] },
+    { c1: ['Motor:', dados.motor], c2: ['Portas:', dados.portas], c3: ['Cor:', dados.cor] },
+    { c1: ['KM:', dados.km], c2: ['Combustível:', dados.combustivel], c3: ['Tanque:', dados.tanque] },
+    { c1: ['Direção:', dados.direcao], c2: ['Ar Cond.:', dados.ar], c3: ['Data Entrada:', dataEntradaFormatada] }
+];
 
         campos.forEach(linha => {
             pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c1[0]), col1, yPos);
@@ -408,7 +409,7 @@ async function createComprovantePDF(dados) {
         
         yPos += 10;
         pdf.setTextColor(0, 128, 0);
-        pdf.text(`CONFORME: ${tOk}`, margin + 10, yPos);
+        pdf.text(`OK: ${tOk}`, margin + 10, yPos);
         pdf.setTextColor(200, 120, 0);
         pdf.text(`ATENÇÃO: ${tAtencao}`, margin + 55, yPos);
         pdf.setTextColor(180, 0, 0);
@@ -857,6 +858,7 @@ setTimeout(() => {
         showMessage('Interface reativada automaticamente.', false);
     }
 }, 30000);
+
 
 
 
