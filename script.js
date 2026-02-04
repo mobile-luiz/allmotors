@@ -233,16 +233,12 @@ async function loadJSPDF() {
         document.head.appendChild(script);
     });
 }
-
-// 1. FUNÇÃO AUXILIAR PARA CARREGAR A IMAGEM
-// 1. FUNÇÃO AUXILIAR REVISADA
 /**
  * Função auxiliar para carregar a imagem local
  */
 function loadImage(url) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        // Importante para evitar problemas de CORS se rodar em servidor
         img.crossOrigin = "Anonymous"; 
         img.src = url;
         img.onload = () => resolve(img);
@@ -266,18 +262,21 @@ function formatarDataBR(dataString) {
 async function createComprovantePDF(dados, statusData) {
     try {
         const { jsPDF } = window.jspdf;
+        // Definindo margens e largura útil
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = 210;
-        let yPos = 15;
+        const margin = 15;
+        let yPos = 10;
 
-        // 1. TENTATIVA DE CARREGAR LOGO LOCAL
+        // 1. CABEÇALHO: LOGOTIPO AMPLIADO
         try {
-            // Caminho para sua logo local
             const logoImg = await loadImage('logo.png');
             
-            // Ajuste inteligente de tamanho (Mantendo proporção)
-            const maxWidth = 100;
-            const maxHeight = 100;
+            // Aumentamos o maxWidth para 180mm (quase a largura total da folha)
+            // e o maxHeight para 45mm para dar presença ao logo
+            const maxWidth = 180;
+            const maxHeight = 45; 
+            
             let finalWidth = logoImg.width;
             let finalHeight = logoImg.height;
             const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
@@ -285,11 +284,14 @@ async function createComprovantePDF(dados, statusData) {
             finalWidth = finalWidth * ratio;
             finalHeight = finalHeight * ratio;
 
-            // Adiciona a imagem centralizada
-            pdf.addImage(logoImg, 'PNG', (pageWidth - finalWidth) / 2, 10, finalWidth, finalHeight);
-            yPos = 15 + finalHeight + 10; // Posiciona o próximo texto abaixo da logo
+            // Centraliza o logo horizontalmente
+            const xLogo = (pageWidth - finalWidth) / 2;
+            pdf.addImage(logoImg, 'PNG', xLogo, yPos, finalWidth, finalHeight);
+            
+            // O próximo elemento começará 10mm abaixo do fim do logo
+            yPos += finalHeight + 10; 
         } catch (e) {
-            console.warn("Logo não encontrada, prosseguindo sem ela.");
+            console.warn("Logo não encontrada ou erro no carregamento. Usando margem padrão.");
             yPos = 25;
         }
 
@@ -302,20 +304,25 @@ async function createComprovantePDF(dados, statusData) {
 
         pdf.setTextColor(100);
         pdf.setFontSize(8);
-        pdf.text(`Gerado em: ${dataGeracao}`, pageWidth - 15, 12, { align: 'right' });
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, 12, { align: 'right' });
 
         // 3. SEÇÃO: INFORMAÇÕES DO CLIENTE / VEÍCULO
         pdf.setTextColor(0);
-        pdf.setFontSize(10);
+        pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('INFORMAÇÕES DO CLIENTE / VEÍCULO', 15, yPos);
+        pdf.text('INFORMAÇÕES DO CLIENTE / VEÍCULO', margin, yPos);
+        
         yPos += 2;
         pdf.setLineWidth(0.5);
-        pdf.line(15, yPos, pageWidth - 15, yPos);
+        pdf.setDrawColor(0);
+        pdf.line(margin, yPos, pageWidth - margin, yPos); // Linha horizontal
         yPos += 7;
 
-        pdf.setFontSize(8.5);
-        const col1 = 15, col2 = 80, col3 = 145;
+        pdf.setFontSize(9);
+        const col1 = margin;
+        const col2 = 80;
+        const col3 = 145;
         const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
 
         const campos = [
@@ -328,19 +335,28 @@ async function createComprovantePDF(dados, statusData) {
         ];
 
         campos.forEach(linha => {
+            // Coluna 1
             pdf.setFont('helvetica', 'bold'); 
             pdf.text(String(linha.c1[0]), col1, yPos);
-            pdf.text(String(linha.c2[0]), col2, yPos);
-            pdf.text(String(linha.c3[0]), col3, yPos);
-
             pdf.setFont('helvetica', 'normal'); 
-            pdf.text(String(linha.c1[1] || '-'), col1 + 14, yPos);
-            pdf.text(String(linha.c2[1] || '-'), col2 + 20, yPos);
-            pdf.text(String(linha.c3[1] || '-'), col3 + 18, yPos);
-            yPos += 5;
+            pdf.text(String(linha.c1[1] || '-'), col1 + 15, yPos);
+
+            // Coluna 2
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c2[0]), col2, yPos);
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c2[1] || '-'), col2 + 22, yPos);
+
+            // Coluna 3
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c3[0]), col3, yPos);
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c3[1] || '-'), col3 + 15, yPos);
+            
+            yPos += 6;
         });
 
-        yPos += 5;
+        yPos += 4;
 
         // 4. ITENS INSPECIONADOS
         const categorias = {
@@ -357,54 +373,63 @@ async function createComprovantePDF(dados, statusData) {
             "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe']
         };
 
-        pdf.setFontSize(10);
+        pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('DETALHAMENTO DA INSPEÇÃO', 15, yPos);
+        pdf.text('DETALHAMENTO DA INSPEÇÃO', margin, yPos);
         yPos += 2;
-        pdf.line(15, yPos, pageWidth - 15, yPos);
+        pdf.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 6;
 
-        pdf.setFontSize(7.5);
+        pdf.setFontSize(8);
         for (const [titulo, ids] of Object.entries(categorias)) {
             // Verificação de quebra de página
-            if (yPos > 270) { pdf.addPage(); yPos = 20; }
+            if (yPos > 275) { pdf.addPage(); yPos = 20; }
             
             pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 150, 136); 
-            pdf.text(titulo, 15, yPos);
-            yPos += 4.5;
+            pdf.setTextColor(0, 102, 204); // Azul escuro profissional
+            pdf.text(titulo, margin, yPos);
+            yPos += 5;
             
             pdf.setTextColor(0);
             pdf.setFont('helvetica', 'normal');
 
             ids.forEach((id, index) => {
-                if (yPos > 282) { pdf.addPage(); yPos = 20; }
+                if (yPos > 285) { pdf.addPage(); yPos = 20; }
                 
-                let currentX = (index % 2 === 0) ? 20 : 110;
+                let currentX = (index % 2 === 0) ? margin + 5 : 110;
                 const status = statusData ? statusData[id] : null;
-                let prefixo = '[ - ]';
+                let prefixo = '[   ]';
                 
-                if (status === 'ok') { pdf.setTextColor(46, 204, 113); prefixo = '[ OK ]'; }
-                else if (status === 'atencao') { pdf.setTextColor(211, 158, 0); prefixo = '[ ! ]'; }
-                else if (status === 'critico') { pdf.setTextColor(231, 76, 60); prefixo = '[ X ]'; }
-                else { pdf.setTextColor(150); }
+                if (status === 'ok') { 
+                    pdf.setTextColor(39, 174, 96); // Verde
+                    prefixo = '[ OK ]'; 
+                } else if (status === 'atencao') { 
+                    pdf.setTextColor(230, 126, 34); // Laranja
+                    prefixo = '[ ! ]'; 
+                } else if (status === 'critico') { 
+                    pdf.setTextColor(192, 57, 43); // Vermelho
+                    prefixo = '[ X ]'; 
+                } else { 
+                    pdf.setTextColor(150); 
+                }
 
                 const nomeFormatado = id.replace(/_/g, ' ').toUpperCase();
                 pdf.text(`${prefixo} ${nomeFormatado}`, currentX, yPos);
                 
-                if (index % 2 !== 0 || index === ids.length - 1) yPos += 4.5;
+                if (index % 2 !== 0 || index === ids.length - 1) yPos += 5;
             });
             yPos += 2;
         }
 
         // 5. ASSINATURA
-        yPos += 10;
-        if (yPos > 270) { pdf.addPage(); yPos = 30; }
-        pdf.setDrawColor(200);
+        yPos += 15;
+        if (yPos > 260) { pdf.addPage(); yPos = 30; }
+        
+        pdf.setDrawColor(150);
         pdf.setTextColor(0);
         pdf.line(60, yPos + 10, pageWidth - 60, yPos + 10);
-        pdf.setFontSize(8);
-        pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 14, { align: 'center' });
+        pdf.setFontSize(9);
+        pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
         // SALVAMENTO
         pdf.save(`Checklist_${dados.placa || 'Veiculo'}.pdf`);
@@ -412,9 +437,9 @@ async function createComprovantePDF(dados, statusData) {
 
     } catch (error) {
         console.error("Erro geral na geração do PDF:", error);
+        alert("Erro ao gerar o PDF. Verifique o console.");
     }
 }
-
 
 
 function showComprovanteTela(dados) {
