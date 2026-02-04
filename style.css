@@ -466,3 +466,35 @@ button {
         margin-bottom: 10px;
     }
 }
+
+@media print {
+    body, .page {
+        margin: 0;
+        box-shadow: none;
+        width: 100%;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+}
+
+/* Garante que o container capturado não limite a altura */
+.page {
+    height: auto !important;
+    min-height: 100%;
+    overflow: visible !important;
+}
+
+
+@media print {
+    .no-print, .button-container, .btn-pdf, .btn-save {
+        display: none !important;
+    }
+    .page {
+        margin: 0 !important;
+        box-shadow: none !important;
+        width: 100% !important;
+    }
+}

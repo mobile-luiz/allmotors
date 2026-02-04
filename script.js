@@ -64,11 +64,7 @@ const textFieldIds = [
 // Objeto para armazenar o status de cada item
 const statusData = {};
 
-// Variável para controle de salvamento
-let isSaving = false;
-// Variável para armazenar os dados enviados (para uso no PDF)
-let lastSavedData = null;
-
+// Sistema de mensagens
 function showMessage(text, isError = false) {
     const messageDiv = isError ? document.getElementById('error') : document.getElementById('message');
     const otherDiv = isError ? document.getElementById('message') : document.getElementById('error');
@@ -84,7 +80,7 @@ function showMessage(text, isError = false) {
     }
 }
 
-// Função para mostrar/esconder barra de progresso
+// Sistema de progresso
 function toggleProgressBar(show, progress = 0) {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
@@ -99,18 +95,16 @@ function toggleProgressBar(show, progress = 0) {
     }
 }
 
-// Função para atualizar a barra de progresso
 function updateProgressBar(progress) {
     const progressFill = document.getElementById('progress-fill');
     const progressText = document.getElementById('progress-text');
-    
     progressFill.style.width = `${progress}%`;
     progressText.textContent = `${Math.round(progress)}%`;
 }
 
-// Função para congelar/descongelar botões
+// Sistema de botões
 function toggleButtons(disable) {
-    const buttons = document.querySelectorAll('.button-container button, .btn-pdf, .btn-print, .btn-save, .btn-clear');
+    const buttons = document.querySelectorAll('button');
     const checkboxes = document.querySelectorAll('.status-checkbox');
     const textFields = document.querySelectorAll('input[type="text"], input[type="date"]');
     
@@ -130,10 +124,9 @@ function toggleButtons(disable) {
         field.style.opacity = disable ? '0.5' : '1';
         field.style.backgroundColor = disable ? '#f5f5f5' : 'white';
     });
-    
-    isSaving = disable;
 }
 
+// Modal de confirmação
 function openModal() {
     document.getElementById('confirmModal').style.display = 'block';
 }
@@ -147,11 +140,9 @@ function confirmSave() {
     saveToGoogleSheetConfirmed();
 }
 
-// Função para atualizar contadores
+// Sistema de status
 function updateCounters() {
-    let okCount = 0;
-    let atencaoCount = 0;
-    let criticoCount = 0;
+    let okCount = 0, atencaoCount = 0, criticoCount = 0;
     
     itemIds.forEach(id => {
         const status = statusData[id];
@@ -165,505 +156,516 @@ function updateCounters() {
     document.getElementById('count-critico').textContent = criticoCount;
 }
 
-// Função para selecionar status
 function selectStatus(checkbox) {
-    if (isSaving) return; // Impede seleção durante salvamento
+    if (document.querySelectorAll('button').length > 0 && document.querySelectorAll('button')[0].disabled) {
+        return; // Não permite seleção se botões estão desabilitados
+    }
     
     const itemId = checkbox.getAttribute('data-id');
     const status = checkbox.getAttribute('data-status');
     
-    // Encontrar todos os checkboxes do mesmo item
-    const allCheckboxes = document.querySelectorAll(`.status-checkbox[data-id="${itemId}"]`);
-    
-    // Remover seleção de todos os checkboxes deste item
-    allCheckboxes.forEach(cb => {
+    document.querySelectorAll(`.status-checkbox[data-id="${itemId}"]`).forEach(cb => {
         cb.classList.remove('checked');
     });
     
-    // Selecionar o checkbox clicado
     checkbox.classList.add('checked');
-    
-    // Salvar status no objeto
     statusData[itemId] = status;
-    
-    // Atualizar contadores
     updateCounters();
 }
 
-// Função para limpar todos os campos do formulário
+// Sistema de limpeza
 function clearAllFields() {
-    // Limpar campos de texto
     textFieldIds.forEach(fieldId => {
         const field = document.getElementById(fieldId);
-        if (field) {
-            if (field.type === 'date') {
-                field.value = '';
-            } else {
-                field.value = '';
-            }
-        }
+        if (field) field.value = '';
     });
 
-    // Limpar status dos itens
     itemIds.forEach(id => {
         statusData[id] = null;
-        const checkboxes = document.querySelectorAll(`.status-checkbox[data-id="${id}"]`);
-        checkboxes.forEach(cb => {
+        document.querySelectorAll(`.status-checkbox[data-id="${id}"]`).forEach(cb => {
             cb.classList.remove('checked');
         });
     });
     
-    // Resetar contadores
     updateCounters();
-    
-    // Remover botão de compartilhar se existir
-    const shareButton = document.getElementById('btn-share-pdf');
-    if (shareButton) {
-        shareButton.remove();
-    }
-    
-    lastSavedData = null;
 }
 
-// Função para preparar a página para captura (remove elementos problemáticos)
-function preparePageForCapture() {
-    const page = document.querySelector('.page');
-    const clone = page.cloneNode(true);
-    
-    // Remover elementos problemáticos
-    clone.querySelectorAll('img, iframe, video, audio, canvas').forEach(el => el.remove());
-    
-    // Remover elementos de interação
-    clone.querySelectorAll('.no-print').forEach(el => el.remove());
-    
-    // Remover event listeners
-    clone.querySelectorAll('*').forEach(el => {
-        const newEl = el.cloneNode(true);
-        el.parentNode.replaceChild(newEl, el);
+// ==================== SISTEMA DE PDF AUTOMÁTICO ====================
+
+async function generateComprovantePDF(dadosSalvos) {
+    return new Promise((resolve) => {
+        try {
+            // Verificar se jsPDF está disponível
+            if (typeof jsPDF === 'undefined') {
+                console.error('Biblioteca jsPDF não carregada');
+                // Tentar carregar dinamicamente
+                loadJSPDF().then(() => {
+                    createComprovantePDF(dadosSalvos).then(resolve);
+                }).catch(() => {
+                    // Fallback sem PDF
+                    showComprovanteTela(dadosSalvos);
+                    resolve();
+                });
+                return;
+            }
+            
+            createComprovantePDF(dadosSalvos).then(resolve);
+            
+        } catch (error) {
+            console.error('Erro ao iniciar geração de PDF:', error);
+            showComprovanteTela(dadosSalvos);
+            resolve();
+        }
     });
-    
-    // Estilo para a cópia
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.top = '0';
-    clone.style.width = '210mm';
-    clone.style.backgroundColor = 'white';
-    clone.style.color = 'black';
-    
-    document.body.appendChild(clone);
-    
-    return clone;
 }
 
-// Função para limpar a cópia após a captura
-function cleanupCaptureClone(clone) {
-    if (clone && clone.parentNode) {
-        clone.parentNode.removeChild(clone);
-    }
-}
-
-// Função para gerar PDF após salvamento
-async function generateAndSharePDF() {
-    try {
-        if (!lastSavedData) {
-            showMessage('Nenhum dado encontrado para gerar PDF', true);
+async function loadJSPDF() {
+    return new Promise((resolve, reject) => {
+        if (typeof jsPDF !== 'undefined') {
+            resolve();
             return;
         }
         
-        showMessage('Gerando PDF para compartilhamento...', false);
-        toggleButtons(true);
-        
-        // Criar uma cópia limpa da página para captura
-        const pageClone = preparePageForCapture();
-        
-        try {
-            // Capturar a página com html2canvas - CONFIGURAÇÕES CORRIGIDAS
-            const canvas = await html2canvas(pageClone, {
-                scale: 2,
-                useCORS: false, // IMPORTANTE: false para evitar problemas de CORS
-                allowTaint: false, // IMPORTANTE: false para evitar tainted canvas
-                backgroundColor: '#ffffff',
-                logging: false,
-                imageTimeout: 0, // Desabilita timeout para imagens
-                removeContainer: true,
-                foreignObjectRendering: false, // Desabilita foreignObject
-                ignoreElements: (element) => {
-                    // Ignora elementos específicos que podem causar problemas
-                    return element.tagName === 'IMG' || 
-                           element.tagName === 'IFRAME' ||
-                           element.tagName === 'VIDEO' ||
-                           element.tagName === 'AUDIO' ||
-                           element.tagName === 'CANVAS';
-                }
-            });
-            
-            // Limpar a cópia
-            cleanupCaptureClone(pageClone);
-            
-            // Configurar o PDF
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 190; // Largura menor para margens
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            
-            // Calcular posição para centralizar
-            const xPos = (210 - imgWidth) / 2; // 210mm é largura do A4
-            
-            // Adicionar título ao PDF
-            pdf.setFontSize(16);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 0, 0);
-            pdf.text('CHECKLIST VEICULAR - INSPEÇÃO COMPLETA', 105, 15, { align: 'center' });
-            
-            // Adicionar informações do cliente
-            pdf.setFontSize(10);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(`Cliente: ${lastSavedData.nomeCliente || 'Não informado'}`, 20, 25);
-            pdf.text(`Placa: ${lastSavedData.placa || 'Não informada'}`, 20, 30);
-            pdf.text(`Data: ${lastSavedData.dataEntrada || new Date().toLocaleDateString('pt-BR')}`, 20, 35);
-            
-            // Adicionar resumo
-            pdf.text(`Resumo: OK: ${lastSavedData.total_ok || 0} | ATENÇÃO: ${lastSavedData.total_atencao || 0} | CRÍTICO: ${lastSavedData.total_critico || 0}`, 20, 40);
-            
-            // Adicionar a imagem ao PDF
-            const imgData = canvas.toDataURL('image/jpeg', 0.95); // Usar JPEG para menor tamanho
-            pdf.addImage(imgData, 'JPEG', xPos, 45, imgWidth, imgHeight);
-            
-            // Adicionar rodapé
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            pdf.setFontSize(8);
-            pdf.setTextColor(100);
-            pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 105, pageHeight - 10, { align: 'center' });
-            pdf.text(`Checklist Veicular - Todos os direitos reservados`, 105, pageHeight - 5, { align: 'center' });
-            
-            // Gerar nome do arquivo
-            const nomeCliente = (lastSavedData.nomeCliente || 'Checklist')
-                .replace(/\s+/g, '_')
-                .replace(/[^a-zA-Z0-9_]/g, '');
-            const placa = (lastSavedData.placa || '')
-                .replace(/\s+/g, '')
-                .toUpperCase();
-            const data = new Date().toISOString().split('T')[0];
-            const fileName = `Checklist_${nomeCliente}_${placa}_${data}.pdf`;
-            
-            // Salvar o PDF
-            const pdfBlob = pdf.output('blob');
-            const pdfUrl = URL.createObjectURL(pdfBlob);
-            
-            // Abrir em nova aba para visualização
-            const newWindow = window.open(pdfUrl, '_blank');
-            if (!newWindow) {
-                // Se popup foi bloqueado, oferecer download
-                downloadPDF(pdfBlob, fileName);
-            }
-            
-            // Mostrar opções de compartilhamento
-            setTimeout(() => {
-                showShareOptions(pdfBlob, fileName);
-                toggleButtons(false);
-                showMessage('✓ PDF gerado com sucesso! Clique em "COMPARTILHAR PDF" acima.');
-            }, 1000);
-            
-        } catch (captureError) {
-            console.error('Erro na captura:', captureError);
-            cleanupCaptureClone(pageClone);
-            
-            // Fallback: criar PDF apenas com texto
-            createTextOnlyPDF();
-        }
-        
-    } catch (error) {
-        console.error('Erro ao gerar PDF:', error);
-        toggleButtons(false);
-        showMessage('Erro ao gerar PDF. Tentando método alternativo...', true);
-        
-        // Tentar método alternativo
-        setTimeout(() => {
-            createTextOnlyPDF();
-        }, 1000);
-    }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject();
+        document.head.appendChild(script);
+    });
 }
 
-// Método alternativo: criar PDF apenas com texto
-function createTextOnlyPDF() {
+// 1. FUNÇÃO AUXILIAR PARA CARREGAR A IMAGEM
+// 1. FUNÇÃO AUXILIAR REVISADA
+/**
+ * Função auxiliar para carregar a imagem local
+ */
+function loadImage(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        // Importante para evitar problemas de CORS se rodar em servidor
+        img.crossOrigin = "Anonymous"; 
+        img.src = url;
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(new Error("Não foi possível carregar a imagem em: " + url));
+    });
+}
+
+/**
+ * Função para formatar data (AAAA-MM-DD para DD/MM/AAAA)
+ */
+function formatarDataBR(dataString) {
+    if (!dataString) return '-';
+    const partes = dataString.split('-');
+    if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    return dataString;
+}
+
+/**
+ * Função principal de geração do PDF
+ */
+async function createComprovantePDF(dados, statusData) {
     try {
-        if (!lastSavedData) return;
-        
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        // Configurações do PDF
-        pdf.setFont('helvetica');
-        
-        // Cabeçalho
-        pdf.setFontSize(20);
-        pdf.setTextColor(0, 0, 0);
-        pdf.text('CHECKLIST VEICULAR', 105, 20, { align: 'center' });
-        
-        pdf.setFontSize(12);
-        pdf.text('INSPEÇÃO COMPLETA DE VEÍCULO', 105, 28, { align: 'center' });
-        
-        // Informações do cliente
+        const pageWidth = 210;
+        let yPos = 15;
+
+        // 1. TENTATIVA DE CARREGAR LOGO LOCAL
+        try {
+            // Caminho para sua logo local
+            const logoImg = await loadImage('logo.png');
+            
+            // Ajuste inteligente de tamanho (Mantendo proporção)
+            const maxWidth = 50;
+            const maxHeight = 25;
+            let finalWidth = logoImg.width;
+            let finalHeight = logoImg.height;
+            const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
+            
+            finalWidth = finalWidth * ratio;
+            finalHeight = finalHeight * ratio;
+
+            // Adiciona a imagem centralizada
+            pdf.addImage(logoImg, 'PNG', (pageWidth - finalWidth) / 2, 10, finalWidth, finalHeight);
+            yPos = 15 + finalHeight + 10; // Posiciona o próximo texto abaixo da logo
+        } catch (e) {
+            console.warn("Logo não encontrada, prosseguindo sem ela.");
+            yPos = 25;
+        }
+
+        // 2. DATA DE GERAÇÃO (Topo Direito)
+        const dataGeracao = new Date().toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        pdf.setTextColor(100);
+        pdf.setFontSize(8);
+        pdf.text(`Gerado em: ${dataGeracao}`, pageWidth - 15, 12, { align: 'right' });
+
+        // 3. SEÇÃO: INFORMAÇÕES DO CLIENTE / VEÍCULO
+        pdf.setTextColor(0);
         pdf.setFontSize(10);
-        pdf.setTextColor(50, 50, 50);
-        
-        let yPos = 40;
-        
-        // Linha divisória
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(20, yPos - 5, 190, yPos - 5);
-        
-        // Informações do cliente
         pdf.setFont('helvetica', 'bold');
-        pdf.text('INFORMAÇÕES DO CLIENTE E VEÍCULO:', 20, yPos);
-        pdf.setFont('helvetica', 'normal');
-        
+        pdf.text('INFORMAÇÕES DO CLIENTE / VEÍCULO', 15, yPos);
+        yPos += 2;
+        pdf.setLineWidth(0.5);
+        pdf.line(15, yPos, pageWidth - 15, yPos);
         yPos += 7;
-        pdf.text(`Cliente: ${lastSavedData.nomeCliente || 'Não informado'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`Telefone: ${lastSavedData.telefones || 'Não informado'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`Email: ${lastSavedData.email || 'Não informado'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`CPF: ${lastSavedData.cpf || 'Não informado'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`Placa: ${lastSavedData.placa || 'Não informada'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`Modelo: ${lastSavedData.fabricante || ''} ${lastSavedData.modelo || ''} ${lastSavedData.ano || ''}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`Motor: ${lastSavedData.motor || 'Não informado'} | Combustível: ${lastSavedData.combustivel || 'Não informado'}`, 20, yPos);
-        yPos += 5;
-        pdf.text(`KM: ${lastSavedData.km || 'Não informado'} | Direção: ${lastSavedData.direcao || 'Não informado'}`, 20, yPos);
-        
-        yPos += 10;
-        
-        // Resumo
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('RESUMO DA INSPEÇÃO:', 20, yPos);
-        pdf.setFont('helvetica', 'normal');
-        
-        yPos += 7;
-        pdf.setTextColor(0, 128, 0);
-        pdf.text(`✓ OK: ${lastSavedData.total_ok || 0} itens`, 20, yPos);
-        pdf.setTextColor(255, 165, 0);
-        pdf.text(`⚠ ATENÇÃO: ${lastSavedData.total_atencao || 0} itens`, 80, yPos);
-        pdf.setTextColor(255, 0, 0);
-        pdf.text(`✗ CRÍTICO: ${lastSavedData.total_critico || 0} itens`, 140, yPos);
-        
-        pdf.setTextColor(0, 0, 0);
-        yPos += 10;
-        
-        // Detalhes por categoria
-        const categories = [
-            { title: 'AVALIAÇÃO INICIAL', items: ['dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria'] },
-            { title: 'MOTOR', items: ['condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo', 'velas_ignicao'] },
-            // Adicione outras categorias conforme necessário
+
+        pdf.setFontSize(8.5);
+        const col1 = 15, col2 = 80, col3 = 145;
+        const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
+
+        const campos = [
+            { c1: ['Nome:', dados.nomeCliente], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
+            { c1: ['CPF:', dados.cpf], c2: ['Placa:', dados.placa], c3: ['Fabricante:', dados.fabricante] },
+            { c1: ['Modelo:', dados.modelo], c2: ['Ano:', dados.ano], c3: ['Motor:', dados.motor] },
+            { c1: ['Portas:', dados.portas], c2: ['Combustível:', dados.combustivel], c3: ['Tanque:', dados.tanque] },
+            { c1: ['KM:', dados.km], c2: ['Direção:', dados.direcao], c3: ['Ar:', dados.ar] },
+            { c1: ['Cor:', dados.cor], c2: ['Data Entrada:', dataEntradaFormatada], c3: ['Nº Ordem:', dados.numOrdem] }
         ];
-        
-        categories.forEach(category => {
-            if (yPos > 250) {
-                pdf.addPage();
-                yPos = 20;
-            }
-            
-            pdf.setFont('helvetica', 'bold');
-            pdf.text(`${category.title}:`, 20, yPos);
-            pdf.setFont('helvetica', 'normal');
-            yPos += 5;
-            
-            category.items.forEach(itemId => {
-                if (lastSavedData[itemId] && lastSavedData[itemId] !== 'NÃO AVALIADO') {
-                    const itemName = itemId.replace(/_/g, ' ').toUpperCase();
-                    pdf.text(`  ${lastSavedData[itemId]} ${itemName}`, 25, yPos);
-                    yPos += 4;
-                }
-            });
-            
+
+        campos.forEach(linha => {
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c1[0]), col1, yPos);
+            pdf.text(String(linha.c2[0]), col2, yPos);
+            pdf.text(String(linha.c3[0]), col3, yPos);
+
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c1[1] || '-'), col1 + 14, yPos);
+            pdf.text(String(linha.c2[1] || '-'), col2 + 20, yPos);
+            pdf.text(String(linha.c3[1] || '-'), col3 + 18, yPos);
             yPos += 5;
         });
-        
-        // Rodapé
-        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        yPos += 5;
+
+        // 4. ITENS INSPECIONADOS
+        const categorias = {
+            "AVALIAÇÃO INICIAL": ['dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria'],
+            "MOTOR": ['condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo', 'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios', 'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor'],
+            "ARREFECIMENTO": ['condicao_fluido_arref', 'vazamentos_arref', 'mangueiras_arref', 'bomba_agua', 'radiador', 'tampa_arref', 'reservatorio', 'eletroventilador'],
+            "FREIOS": ['condicao_fluido_freio', 'flexiveis_freio', 'pastilhas_dianteira', 'discos_dianteiro', 'tambor_disco_traseiro', 'pastilhas_sapata_traseira', 'cilindro_roda', 'pincas', 'cabos_freio', 'modulo_abs'],
+            "DIREÇÃO": ['condicao_fluido_direcao', 'bomba_hidraulica', 'caixa_direcao', 'mangueiras_direcao', 'coluna', 'terminal_direcao', 'barra_axial'],
+            "TRANSMISSÃO": ['condicao_fluido_transmissao', 'vazamentos_transmissao', 'diferencial_ruidos', 'caixa_transferencia_ruidos', 'coifas_transmissao', 'homocinetica', 'trizeta_tulipa', 'semi_eixos', 'coxim_diferencial', 'carda_folga_ruido', 'rolamento_cubo_dianteiro', 'rolamento_cubo_traseiro', 'bolachao_carda'],
+            "COXINS": ['coxins_motor', 'coxins_cambio'],
+            "SUSPENSÃO DIANTEIRA": ['bieletas_dianteira', 'buchas_bandeja_inf', 'buchas_bandeja_sup', 'pivo_dianteiro', 'bucha_barra_estabilizadora', 'bucha_quadro_dianteira', 'amortecedores_dianteiros', 'coxim_suspensao', 'rolamento_peso_dianteiro', 'coifa_batente_dianteiro', 'mola_dianteira', 'calco_mola_dianteira'],
+            "SUSPENSÃO TRASEIRA": ['bucha_manga_eixo', 'bucha_bandeja_inferior', 'bucha_bandeja_superior', 'bucha_braco_tensor', 'braco_auxiliar_bucha_pivo', 'bucha_braco_oscilante', 'calco_mola_traseira', 'batente_mola', 'mola_traseira', 'coifa_batente_traseiro', 'coxim_amortecedor', 'amortecedor_traseiro', 'bieleta_traseira', 'bucha_barra_estabilizadora_traseira', 'barra_estabilizadora_traseira'],
+            "LÂMPADAS": ['farol_baixo', 'farol_alto', 'lanterna', 'neblina', 'pisca_dianteiro', 'drl', 'freio_breaklight', 'lanterna_traseira', 'pisca_traseiro', 're', 'luz_placa'],
+            "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe']
+        };
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('DETALHAMENTO DA INSPEÇÃO', 15, yPos);
+        yPos += 2;
+        pdf.line(15, yPos, pageWidth - 15, yPos);
+        yPos += 6;
+
+        pdf.setFontSize(7.5);
+        for (const [titulo, ids] of Object.entries(categorias)) {
+            // Verificação de quebra de página
+            if (yPos > 270) { pdf.addPage(); yPos = 20; }
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(0, 150, 136); 
+            pdf.text(titulo, 15, yPos);
+            yPos += 4.5;
+            
+            pdf.setTextColor(0);
+            pdf.setFont('helvetica', 'normal');
+
+            ids.forEach((id, index) => {
+                if (yPos > 282) { pdf.addPage(); yPos = 20; }
+                
+                let currentX = (index % 2 === 0) ? 20 : 110;
+                const status = statusData ? statusData[id] : null;
+                let prefixo = '[ - ]';
+                
+                if (status === 'ok') { pdf.setTextColor(46, 204, 113); prefixo = '[ OK ]'; }
+                else if (status === 'atencao') { pdf.setTextColor(211, 158, 0); prefixo = '[ ! ]'; }
+                else if (status === 'critico') { pdf.setTextColor(231, 76, 60); prefixo = '[ X ]'; }
+                else { pdf.setTextColor(150); }
+
+                const nomeFormatado = id.replace(/_/g, ' ').toUpperCase();
+                pdf.text(`${prefixo} ${nomeFormatado}`, currentX, yPos);
+                
+                if (index % 2 !== 0 || index === ids.length - 1) yPos += 4.5;
+            });
+            yPos += 2;
+        }
+
+        // 5. ASSINATURA
+        yPos += 10;
+        if (yPos > 270) { pdf.addPage(); yPos = 30; }
+        pdf.setDrawColor(200);
+        pdf.setTextColor(0);
+        pdf.line(60, yPos + 10, pageWidth - 60, yPos + 10);
         pdf.setFontSize(8);
-        pdf.setTextColor(100);
-        pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 105, pageHeight - 10, { align: 'center' });
-        pdf.text(`Checklist Veicular - Relatório Técnico`, 105, pageHeight - 5, { align: 'center' });
-        
-        // Gerar nome do arquivo
-        const nomeCliente = (lastSavedData.nomeCliente || 'Checklist')
-            .replace(/\s+/g, '_')
-            .replace(/[^a-zA-Z0-9_]/g, '');
-        const placa = (lastSavedData.placa || '')
-            .replace(/\s+/g, '')
-            .toUpperCase();
-        const data = new Date().toISOString().split('T')[0];
-        const fileName = `Checklist_${nomeCliente}_${placa}_${data}.pdf`;
-        
-        const pdfBlob = pdf.output('blob');
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        
-        window.open(pdfUrl, '_blank');
-        showShareOptions(pdfBlob, fileName);
-        toggleButtons(false);
-        
-        showMessage('✓ PDF gerado com sucesso (método alternativo)!');
-        
+        pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 14, { align: 'center' });
+
+        // SALVAMENTO
+        pdf.save(`Checklist_${dados.placa || 'Veiculo'}.pdf`);
+        if (typeof showComprovanteSuccess === "function") showComprovanteSuccess();
+
     } catch (error) {
-        console.error('Erro no método alternativo:', error);
-        toggleButtons(false);
-        showMessage('❌ Erro ao gerar PDF. Tente usar a opção de impressão do navegador.', true);
+        console.error("Erro geral na geração do PDF:", error);
     }
 }
 
-// Função para mostrar opções de compartilhamento
-function showShareOptions(pdfBlob, fileName) {
-    // Criar botão de compartilhar se não existir
-    let shareButton = document.getElementById('btn-share-pdf');
+
+
+function showComprovanteTela(dados) {
+    // Criar uma tela de comprovante HTML (fallback)
+    const comprovanteDiv = document.createElement('div');
+    comprovanteDiv.id = 'comprovante-tela';
+    comprovanteDiv.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: white;
+        z-index: 9999;
+        padding: 20px;
+        overflow-y: auto;
+        font-family: Arial, sans-serif;
+    `;
     
-    if (!shareButton) {
-        shareButton = document.createElement('button');
-        shareButton.id = 'btn-share-pdf';
-        shareButton.className = 'btn-share';
-        shareButton.innerHTML = '📤 COMPARTILHAR PDF';
-        
-        // Adicionar estilo para o botão de compartilhar
-        const style = document.createElement('style');
-        if (!document.querySelector('#share-button-styles')) {
-            style.id = 'share-button-styles';
-            style.textContent = `
-                .btn-share {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-                    padding: 12px 30px !important;
-                    color: white !important;
-                    border: none !important;
-                    border-radius: 4px !important;
-                    cursor: pointer !important;
-                    font-weight: bold !important;
-                    font-size: 14px !important;
-                    width: 100% !important;
-                    max-width: 300px !important;
-                    margin-bottom: 10px !important;
-                    animation: pulse 2s infinite;
-                }
-                .btn-share:hover {
-                    transform: translateY(-2px) !important;
-                    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4) !important;
-                    transition: all 0.3s ease !important;
-                }
-                @keyframes pulse {
-                    0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
-                    70% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
-                    100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-        
-        // Adicionar ao container de botões
-        const buttonContainer = document.querySelector('.button-container');
-        if (buttonContainer) {
-            buttonContainer.insertBefore(shareButton, buttonContainer.firstChild);
-        }
-    }
+    const dataFormatada = new Date().toLocaleString('pt-BR');
+    const transactionId = 'CHK-' + Date.now().toString().slice(-8);
     
-    // Atualizar funcionalidade do botão
-    shareButton.onclick = async () => {
-        try {
-            // Verificar se a Web Share API está disponível
-            if (navigator.share) {
-                const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    comprovanteDiv.innerHTML = `
+        <div style="background: #009688; color: white; padding: 20px; text-align: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">✓ CHECKLIST VEICULAR</h1>
+            <p style="margin: 5px 0 0 0;">COMPROVANTE DE INSPEÇÃO</p>
+        </div>
+        
+        <div style="text-align: right; color: #666; font-size: 12px; margin-bottom: 20px;">
+            ID: ${transactionId}<br>
+            ${dataFormatada}
+        </div>
+        
+        <div style="text-align: center; color: #009688; font-weight: bold; font-size: 16px; margin: 20px 0;">
+            ✓ INSPEÇÃO REGISTRADA COM SUCESSO
+        </div>
+        
+        <div style="border-top: 2px solid #ccc; padding-top: 20px; margin: 20px 0;">
+            <h3 style="text-align: center;">DADOS DO CLIENTE</h3>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin: 20px;">
+                <div><strong>CLIENTE:</strong></div>
+                <div>${dados.nomeCliente || 'Não informado'}</div>
                 
-                try {
-                    await navigator.share({
-                        files: [file],
-                        title: `Checklist Veicular - ${lastSavedData.nomeCliente || 'Cliente'}`,
-                        text: `Checklist completo do veículo ${lastSavedData.placa || ''}. Cliente: ${lastSavedData.nomeCliente || ''}`
+                <div><strong>PLACA:</strong></div>
+                <div>${dados.placa || 'Não informada'}</div>
+                
+                <div><strong>VEÍCULO:</strong></div>
+                <div>${dados.fabricante || ''} ${dados.modelo || ''} ${dados.ano || ''}</div>
+                
+                <div><strong>DATA ENTRADA:</strong></div>
+                <div>${dados.dataEntrada || new Date().toLocaleDateString('pt-BR')}</div>
+                
+                <div><strong>ORDEM SERVIÇO:</strong></div>
+                <div>${dados.numOrdem || 'Não informado'}</div>
+            </div>
+        </div>
+        
+        <div style="border-top: 2px solid #ccc; padding-top: 20px; margin: 20px 0;">
+            <h3 style="text-align: center;">RESUMO DA AVALIAÇÃO</h3>
+            <div style="display: flex; justify-content: center; gap: 20px; margin: 30px 0;">
+                <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
+                    <div style="font-size: 24px;">✓</div>
+                    <div style="font-weight: bold;">CONFORME</div>
+                    <div>${dados.total_ok || 0} itens</div>
+                </div>
+                
+                <div style="background: #f1c40f; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
+                    <div style="font-size: 24px;">⚠</div>
+                    <div style="font-weight: bold;">ATENÇÃO</div>
+                    <div>${dados.total_atencao || 0} itens</div>
+                </div>
+                
+                <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
+                    <div style="font-size: 24px;">✗</div>
+                    <div style="font-weight: bold;">CRÍTICO</div>
+                    <div>${dados.total_critico || 0} itens</div>
+                </div>
+            </div>
+        </div>
+        
+        ${parseInt(dados.total_critico) > 0 ? `
+        <div style="border: 2px solid #e74c3c; padding: 15px; border-radius: 8px; margin: 20px 0; background: #ffebee;">
+            <h4 style="color: #e74c3c; margin-top: 0;">⚠ ATENÇÃO: ITENS CRÍTICOS DETECTADOS</h4>
+            <ul style="margin: 10px 0;">
+                ${(() => {
+                    let items = '';
+                    let count = 0;
+                    itemIds.forEach(id => {
+                        const status = dados[id];
+                        if (status && status.includes('🔴') && count < 5) {
+                            const label = id.replace(/_/g, ' ').toUpperCase();
+                            items += `<li>${label}</li>`;
+                            count++;
+                        }
                     });
-                    showMessage('✓ PDF compartilhado com sucesso!');
-                } catch (shareError) {
-                    // Se não conseguir compartilhar arquivos, oferecer download
-                    downloadPDF(pdfBlob, fileName);
-                }
-            } else {
-                // Fallback para download
-                downloadPDF(pdfBlob, fileName);
-            }
-        } catch (error) {
-            console.error('Erro ao compartilhar:', error);
-            downloadPDF(pdfBlob, fileName);
-        }
+                    return items;
+                })()}
+            </ul>
+        </div>
+        ` : ''}
+        
+        <div style="border-top: 1px solid #ccc; padding-top: 20px; margin-top: 30px; font-size: 12px; color: #666;">
+            <p><em>Este comprovante serve como registro oficial da inspeção realizada.</em></p>
+            <p><em>Recomenda-se a correção dos itens críticos e de atenção identificados.</em></p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px;">
+            <button onclick="imprimirComprovante()" style="background: #2196F3; color: white; border: none; padding: 12px 30px; border-radius: 4px; font-size: 16px; cursor: pointer; margin-right: 10px;">
+                🖨️ Imprimir
+            </button>
+            <button onclick="fecharComprovante()" style="background: #666; color: white; border: none; padding: 12px 30px; border-radius: 4px; font-size: 16px; cursor: pointer;">
+                ✕ Fechar
+            </button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 11px; color: #999;">
+            <p>Checklist Veicular • Sistema de Inspeção Automotiva</p>
+            <p>Comprovante válido como registro técnico</p>
+        </div>
+    `;
+    
+    document.body.appendChild(comprovanteDiv);
+    
+    // Adicionar as funções ao escopo global temporariamente
+    window.imprimirComprovante = function() {
+        const comprovanteContent = comprovanteDiv.innerHTML;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Comprovante de Inspeção</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        @media print {
+                            button { display: none !important; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${comprovanteContent.replace(/<button[\s\S]*?<\/button>/g, '')}
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    };
+    
+    window.fecharComprovante = function() {
+        document.body.removeChild(comprovanteDiv);
+        delete window.imprimirComprovante;
+        delete window.fecharComprovante;
+        // Limpar formulário após fechar o comprovante
+        setTimeout(() => {
+            clearAllFields();
+            showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
+        }, 500);
     };
 }
 
-// Função auxiliar para download do PDF
-function downloadPDF(pdfBlob, fileName) {
-    const downloadLink = document.createElement('a');
-    downloadLink.href = URL.createObjectURL(pdfBlob);
-    downloadLink.download = fileName;
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    showMessage('✓ PDF baixado com sucesso! Verifique sua pasta de downloads.');
+function showComprovanteSuccess() {
+    // Mostrar mensagem de sucesso
+    const successDiv = document.createElement('div');
+    successDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #2ecc71;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    successDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">✓</span>
+            <div>
+                <div style="font-weight: bold;">PDF gerado com sucesso!</div>
+                <div style="font-size: 12px;">Verifique sua pasta de downloads</div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(successDiv);
+    
+    // Remover após 5 segundos
+    setTimeout(() => {
+        if (successDiv.parentNode) {
+            successDiv.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (successDiv.parentNode) {
+                    document.body.removeChild(successDiv);
+                }
+            }, 300);
+        }
+    }, 5000);
+    
+    // Adicionar estilos de animação
+    if (!document.querySelector('#comprovante-styles')) {
+        const style = document.createElement('style');
+        style.id = 'comprovante-styles';
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
+// ==================== SISTEMA DE SALVAMENTO ====================
+
+// Sistema de salvamento no Google Sheets
 async function saveToGoogleSheet() {
     openModal();
 }
 
 async function saveToGoogleSheetConfirmed() {
     try {
-        // Mostrar barra de progresso inicial
         toggleProgressBar(true, 10);
         toggleButtons(true);
         showMessage('Preparando dados para salvar...', false);
         
-        // Fase 1: Preparação dos dados (20%)
-        await new Promise(resolve => {
-            setTimeout(() => {
-                updateProgressBar(20);
-                resolve();
-            }, 300);
-        });
-        
-        // Coletar dados do cliente
+        // Preparar dados do cliente
+        updateProgressBar(20);
         const clientData = {};
         textFieldIds.forEach(fieldId => {
             clientData[fieldId] = document.getElementById(fieldId).value;
         });
 
-        // Fase 2: Coleta de status (40%)
+        // Preparar dados do checklist
         updateProgressBar(40);
-        await new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, 300);
-        });
-        
-        // Coletar status dos itens
         const checklistData = {};
         itemIds.forEach(id => {
             const status = statusData[id];
-            if (status === 'ok') {
-                checklistData[id] = '🟢 OK';
-            } else if (status === 'atencao') {
-                checklistData[id] = '🟡 ATENÇÃO';
-            } else if (status === 'critico') {
-                checklistData[id] = '🔴 CRÍTICO';
-            } else {
-                checklistData[id] = 'NÃO AVALIADO';
-            }
+            if (status === 'ok') checklistData[id] = '🟢 OK';
+            else if (status === 'atencao') checklistData[id] = '🟡 ATENÇÃO';
+            else if (status === 'critico') checklistData[id] = '🔴 CRÍTICO';
+            else checklistData[id] = 'NÃO AVALIADO';
         });
 
-        // Fase 3: Combinação dos dados (60%)
-        updateProgressBar(60);
-        await new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, 300);
-        });
-        
         // Combinar todos os dados
+        updateProgressBar(60);
         const allData = {
             ...clientData,
             ...checklistData,
@@ -672,13 +674,8 @@ async function saveToGoogleSheetConfirmed() {
             total_atencao: document.getElementById('count-atencao').textContent,
             total_critico: document.getElementById('count-critico').textContent
         };
-
-        // Salvar dados para uso posterior no PDF
-        lastSavedData = { ...allData };
         
         showMessage('Enviando dados para o servidor...', false);
-        
-        // Fase 4: Envio para Google Sheets (80%)
         updateProgressBar(80);
         
         // Enviar para Google Sheets
@@ -691,185 +688,43 @@ async function saveToGoogleSheetConfirmed() {
             body: JSON.stringify(allData)
         });
         
-        // Fase 5: Finalização (100%)
         updateProgressBar(100);
-        await new Promise(resolve => {
-            setTimeout(() => {
-                resolve();
-            }, 500);
-        });
-        
-        // Esconder barra de progresso
+        await new Promise(resolve => setTimeout(resolve, 1000));
         toggleProgressBar(false);
         
-        // Mostrar mensagem de sucesso
-        showMessage('✓ Dados salvos com sucesso! Gerando PDF...');
+        showMessage('✓ Dados salvos com sucesso! Gerando comprovante...');
         
-        // Gerar e mostrar PDF automaticamente após salvamento
+        // Reativar botões
+        toggleButtons(false);
+        
+        // GERAR PDF AUTOMATICAMENTE (como app de banco)
         setTimeout(() => {
-            generateAndSharePDF();
-            
-            // Aguardar mais 3 segundos antes de limpar
-            setTimeout(() => {
-                showMessage('Formulário será limpo em 5 segundos...');
-                
-                // Limpar após mais 5 segundos
+            generateComprovantePDF(allData).then(() => {
+                // Limpar formulário automaticamente após 3 segundos do PDF gerado
                 setTimeout(() => {
                     clearAllFields();
-                    showMessage('Formulário limpo. Pronto para novo checklist!');
-                }, 5000);
-            }, 3000);
-        }, 1000);
-
+                    showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
+                }, 3000);
+            });
+        }, 500);
+        
     } catch (error) {
         console.error('Erro:', error);
-        
-        // Em caso de erro, reativar botões e esconder progresso
         toggleProgressBar(false);
         toggleButtons(false);
         showMessage('Erro ao salvar dados. Verifique a conexão.', true);
     }
 }
 
-// FUNÇÃO PARA SALVAR COMO PDF (manual)
-async function saveAsPDF() {
-    if (isSaving) return;
-    
-    try {
-        // Capturar dados atuais para o PDF
-        const clientData = {};
-        textFieldIds.forEach(fieldId => {
-            clientData[fieldId] = document.getElementById(fieldId).value;
-        });
-        
-        // Adicionar status atuais
-        const checklistData = {};
-        itemIds.forEach(id => {
-            const status = statusData[id];
-            if (status === 'ok') {
-                checklistData[id] = '🟢 OK';
-            } else if (status === 'atencao') {
-                checklistData[id] = '🟡 ATENÇÃO';
-            } else if (status === 'critico') {
-                checklistData[id] = '🔴 CRÍTICO';
-            } else {
-                checklistData[id] = 'NÃO AVALIADO';
-            }
-        });
-        
-        lastSavedData = {
-            ...clientData,
-            ...checklistData,
-            total_ok: document.getElementById('count-ok').textContent,
-            total_atencao: document.getElementById('count-atencao').textContent,
-            total_critico: document.getElementById('count-critico').textContent,
-            dataEntrada: new Date().toLocaleDateString('pt-BR')
-        };
-        
-        // Gerar o PDF
-        await generateAndSharePDF();
-        
-    } catch (error) {
-        console.error('Erro ao gerar PDF:', error);
-        showMessage('Erro ao gerar PDF. Tente novamente.', true);
-    }
-}
-
-// Adicionar botão de salvar como PDF
-function addPDFButton() {
-    const buttonContainer = document.querySelector('.button-container');
-    if (buttonContainer) {
-        // Criar botão de PDF
-        const pdfButton = document.createElement('button');
-        pdfButton.className = 'btn-pdf';
-        pdfButton.innerHTML = '📄 SALVAR COMO PDF';
-        pdfButton.onclick = saveAsPDF;
-        
-        // Adicionar estilo para o botão PDF
-        const style = document.createElement('style');
-        if (!document.querySelector('#pdf-button-styles')) {
-            style.id = 'pdf-button-styles';
-            style.textContent = `
-                .btn-pdf {
-                    background: #2196F3 !important;
-                    padding: 12px 30px !important;
-                    color: white !important;
-                    border: none !important;
-                    border-radius: 4px !important;
-                    cursor: pointer !important;
-                    font-weight: bold !important;
-                    font-size: 14px !important;
-                    width: 100% !important;
-                    max-width: 300px !important;
-                    margin-bottom: 10px !important;
-                }
-                .btn-pdf:hover {
-                    background: #1976D2 !important;
-                    transform: translateY(-2px) !important;
-                    transition: all 0.3s ease !important;
-                }
-                .btn-pdf:disabled {
-                    background: #90CAF9 !important;
-                    cursor: not-allowed !important;
-                    transform: none !important;
-                }
-                
-                /* Estilos para a barra de progresso */
-                .progress-container {
-                    display: none;
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: white;
-                    padding: 30px;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-                    z-index: 1000;
-                    text-align: center;
-                    min-width: 300px;
-                }
-                
-                .progress-bar {
-                    width: 100%;
-                    height: 20px;
-                    background: #e0e0e0;
-                    border-radius: 10px;
-                    margin: 20px 0;
-                    overflow: hidden;
-                }
-                
-                .progress-fill {
-                    height: 100%;
-                    background: linear-gradient(90deg, #4CAF50, #8BC34A);
-                    border-radius: 10px;
-                    transition: width 0.3s ease;
-                    width: 0%;
-                }
-                
-                .progress-text {
-                    font-weight: bold;
-                    color: #333;
-                    margin-top: 10px;
-                }
-                
-                .progress-title {
-                    color: #333;
-                    margin-bottom: 15px;
-                    font-size: 18px;
-                }
-            `;
-            document.head.appendChild(style);
-        }
-        
-        // Inserir o botão depois do botão de imprimir
-        const printButton = buttonContainer.querySelector('.btn-print');
-        printButton.parentNode.insertBefore(pdfButton, printButton.nextSibling);
-    }
-}
-
+// Limpar formulário
 function clearForm() {
-    if (isSaving) return;
+    // Verificar se algum botão está desabilitado
+    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
+    
+    if (anyButtonDisabled) {
+        showMessage('Aguarde o término da operação atual.', true);
+        return;
+    }
     
     if (confirm('Deseja realmente limpar todo o formulário? Os dados não salvos serão perdidos.')) {
         clearAllFields();
@@ -877,24 +732,40 @@ function clearForm() {
     }
 }
 
-// Criar elemento da barra de progresso
+// ==================== INICIALIZAÇÃO ====================
+
+// Inicialização - Barra de Progresso
 function createProgressBar() {
     const progressContainer = document.createElement('div');
     progressContainer.id = 'progress-bar';
     progressContainer.className = 'progress-container';
+    progressContainer.style.cssText = `
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        z-index: 1000;
+        text-align: center;
+        min-width: 300px;
+    `;
     
     progressContainer.innerHTML = `
-        <div class="progress-title">Salvando dados...</div>
-        <div class="progress-bar">
-            <div id="progress-fill" class="progress-fill"></div>
+        <div style="color: #333; margin-bottom: 15px; font-size: 18px;">Salvando dados...</div>
+        <div style="width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; margin: 20px 0; overflow: hidden;">
+            <div id="progress-fill" style="height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); border-radius: 10px; transition: width 0.3s ease; width: 0%;"></div>
         </div>
-        <div id="progress-text" class="progress-text">0%</div>
+        <div id="progress-text" style="font-weight: bold; color: #333; margin-top: 10px;">0%</div>
     `;
     
     document.body.appendChild(progressContainer);
 }
 
-// Carregar página com formulário vazio
+// Inicialização da página
 window.addEventListener('DOMContentLoaded', () => {
     // Inicializar statusData
     itemIds.forEach(id => {
@@ -904,13 +775,10 @@ window.addEventListener('DOMContentLoaded', () => {
     // Criar barra de progresso
     createProgressBar();
     
-    // Adicionar event listeners aos checkboxes de status
+    // Adicionar event listeners aos checkboxes
     document.querySelectorAll('.status-checkbox').forEach(checkbox => {
         checkbox.addEventListener('click', () => selectStatus(checkbox));
     });
-    
-    // Adicionar botão de PDF
-    addPDFButton();
     
     // Atualizar contadores inicialmente
     updateCounters();
@@ -918,58 +786,56 @@ window.addEventListener('DOMContentLoaded', () => {
     showMessage('Formulário pronto para uso. Selecione o status para cada item.');
 });
 
-// Adicionar funcionalidade de atalhos de teclado
+// Atalhos de teclado
 document.addEventListener('keydown', (e) => {
-    if (isSaving) return; // Bloqueia atalhos durante salvamento
+    // Verificar se algum botão está desabilitado
+    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
+    if (anyButtonDisabled) return;
     
     // Ctrl + S para salvar
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         saveToGoogleSheet();
     }
-    // Ctrl + P para imprimir
-    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-        e.preventDefault();
-        window.print();
-    }
     // Ctrl + D para limpar
     if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
         e.preventDefault();
         clearForm();
     }
-    // Ctrl + Shift + P para salvar como PDF
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'P') {
-        e.preventDefault();
-        saveAsPDF();
-    }
 });
 
-// Função para verificar se o formulário tem dados
-function hasFormData() {
-    let hasData = false;
-    
-    // Verificar campos de texto
-    textFieldIds.forEach(fieldId => {
-        if (document.getElementById(fieldId).value.trim() !== '') {
-            hasData = true;
-        }
-    });
-    
-    // Verificar se algum item foi avaliado
-    itemIds.forEach(id => {
-        if (statusData[id]) {
-            hasData = true;
-        }
-    });
-    
-    return hasData;
-}
-
-// Adicionar aviso ao sair da página se houver dados não salvos
+// Aviso ao sair da página se houver dados não salvos
 window.addEventListener('beforeunload', (e) => {
-    if (hasFormData() && !isSaving) {
+    // Verificar se algum botão está desabilitado (salvamento em andamento)
+    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
+    if (anyButtonDisabled) return;
+    
+    // Verificar se há dados no formulário
+    const hasData = textFieldIds.some(fieldId => 
+        document.getElementById(fieldId).value.trim() !== ''
+    ) || itemIds.some(id => statusData[id]);
+    
+    if (hasData) {
         e.preventDefault();
         e.returnValue = 'Existem dados não salvos no formulário. Tem certeza que deseja sair?';
         return e.returnValue;
     }
 });
+
+// Função para imprimir (opcional)
+function printForm() {
+    window.print();
+}
+
+// Adicionar timeout de segurança
+setTimeout(() => {
+    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
+    const progressBarVisible = document.getElementById('progress-bar')?.style.display === 'block';
+    
+    if (anyButtonDisabled && progressBarVisible) {
+        console.log('Safety timeout: Reativando interface...');
+        toggleProgressBar(false);
+        toggleButtons(false);
+        showMessage('Interface reativada automaticamente.', false);
+    }
+}, 30000);
