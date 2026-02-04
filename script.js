@@ -274,7 +274,7 @@ async function createComprovantePDF(dados, statusData) {
             
             // Aumentamos o maxWidth para 180mm (quase a largura total da folha)
             // e o maxHeight para 45mm para dar presença ao logo
-            const maxWidth = 170;
+            const maxWidth = 180;
             const maxHeight = 45; 
             
             let finalWidth = logoImg.width;
@@ -373,26 +373,23 @@ async function createComprovantePDF(dados, statusData) {
             "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe']
         };
 
-        pdf.setFontSize(11);
+       pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
         pdf.text('DETALHAMENTO DA INSPEÇÃO', margin, yPos);
         yPos += 2;
         pdf.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 6;
 
-        pdf.setFontSize(8);
+        pdf.setFontSize(8.5); // Aumentado levemente para leitura
         for (const [titulo, ids] of Object.entries(categorias)) {
             // Verificação de quebra de página
             if (yPos > 275) { pdf.addPage(); yPos = 20; }
             
             pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 102, 204); // Azul escuro profissional
+            pdf.setTextColor(0, 102, 204); // Azul categoria
             pdf.text(titulo, margin, yPos);
             yPos += 5;
             
-            pdf.setTextColor(0);
-            pdf.setFont('helvetica', 'normal');
-
             ids.forEach((id, index) => {
                 if (yPos > 285) { pdf.addPage(); yPos = 20; }
                 
@@ -400,21 +397,30 @@ async function createComprovantePDF(dados, statusData) {
                 const status = statusData ? statusData[id] : null;
                 let prefixo = '[   ]';
                 
-                if (status === 'ok') { 
-                    pdf.setTextColor(39, 174, 96); // Verde
+                // Configuração de Cores e Prefixo
+                if (status === 'ok' || (status && status.includes('🟢'))) { 
+                    pdf.setTextColor(0, 128, 0); // Verde Escuro
                     prefixo = '[ OK ]'; 
-                } else if (status === 'atencao') { 
-                    pdf.setTextColor(230, 126, 34); // Laranja
+                } else if (status === 'atencao' || (status && status.includes('🟡'))) { 
+                    pdf.setTextColor(200, 120, 0); // Laranja Forte
                     prefixo = '[ ! ]'; 
-                } else if (status === 'critico') { 
-                    pdf.setTextColor(192, 57, 43); // Vermelho
+                } else if (status === 'critico' || (status && status.includes('🔴'))) { 
+                    pdf.setTextColor(180, 0, 0); // Vermelho Escuro
                     prefixo = '[ X ]'; 
                 } else { 
-                    pdf.setTextColor(150); 
+                    pdf.setTextColor(0, 0, 0); // PRETO PURO para itens sem marcação
+                    prefixo = '[   ]'; 
                 }
 
                 const nomeFormatado = id.replace(/_/g, ' ').toUpperCase();
-                pdf.text(`${prefixo} ${nomeFormatado}`, currentX, yPos);
+                
+                // Escreve o Prefixo (OK, !, X)
+                pdf.setFont('helvetica', 'bold');
+                pdf.text(prefixo, currentX, yPos);
+                
+                // Escreve o Nome do Item (Sempre em Preto e Negrito para destaque)
+                pdf.setTextColor(0, 0, 0); 
+                pdf.text(nomeFormatado, currentX + 12, yPos);
                 
                 if (index % 2 !== 0 || index === ids.length - 1) yPos += 5;
             });
@@ -425,10 +431,11 @@ async function createComprovantePDF(dados, statusData) {
         yPos += 15;
         if (yPos > 260) { pdf.addPage(); yPos = 30; }
         
-        pdf.setDrawColor(150);
+        pdf.setDrawColor(0); // Linha de assinatura preta
         pdf.setTextColor(0);
         pdf.line(60, yPos + 10, pageWidth - 60, yPos + 10);
         pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
         pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
         // SALVAMENTO
@@ -468,7 +475,7 @@ function showComprovanteTela(dados) {
             <p style="margin: 5px 0 0 0;">COMPROVANTE DE INSPEÇÃO</p>
         </div>
         
-        <div style="text-align: right; color: #666; font-size: 12px; margin-bottom: 20px;">
+        <div style="text-align: right; color: #0a0101dc; font-size: 12px; margin-bottom: 20px;">
             ID: ${transactionId}<br>
             ${dataFormatada}
         </div>
@@ -863,6 +870,7 @@ setTimeout(() => {
         toggleButtons(false);
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 30000);
+}, 30000);;
+
 
 
