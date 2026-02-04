@@ -274,8 +274,8 @@ async function createComprovantePDF(dados, statusData) {
             
             // Aumentamos o maxWidth para 180mm (quase a largura total da folha)
             // e o maxHeight para 45mm para dar presença ao logo
-            const maxWidth = 400;
-            const maxHeight = 300; 
+            const maxWidth = 170;
+            const maxHeight = 45; 
             
             let finalWidth = logoImg.width;
             let finalHeight = logoImg.height;
@@ -864,4 +864,5 @@ setTimeout(() => {
         showMessage('Interface reativada automaticamente.', false);
     }
 }, 30000);
+
 
