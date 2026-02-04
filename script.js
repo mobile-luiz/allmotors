@@ -259,52 +259,42 @@ function formatarDataBR(dataString) {
 /**
  * Função principal de geração do PDF
  */
-async function createComprovantePDF(dados, statusData) {
+/**
+ * Função principal de geração do PDF corrigida
+ */
+async function createComprovantePDF(dados) {
     try {
         const { jsPDF } = window.jspdf;
-        // Definindo margens e largura útil
         const pdf = new jsPDF('p', 'mm', 'a4');
         const pageWidth = 210;
         const margin = 15;
         let yPos = 10;
 
-        // 1. CABEÇALHO: LOGOTIPO AMPLIADO
+        // 1. CABEÇALHO: LOGOTIPO
         try {
             const logoImg = await loadImage('logo.png');
-            
-            // Aumentamos o maxWidth para 180mm (quase a largura total da folha)
-            // e o maxHeight para 45mm para dar presença ao logo
             const maxWidth = 180;
             const maxHeight = 45; 
-            
             let finalWidth = logoImg.width;
             let finalHeight = logoImg.height;
             const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight);
-            
             finalWidth = finalWidth * ratio;
             finalHeight = finalHeight * ratio;
-
-            // Centraliza o logo horizontalmente
             const xLogo = (pageWidth - finalWidth) / 2;
             pdf.addImage(logoImg, 'PNG', xLogo, yPos, finalWidth, finalHeight);
-            
-            // O próximo elemento começará 10mm abaixo do fim do logo
             yPos += finalHeight + 10; 
         } catch (e) {
-            console.warn("Logo não encontrada ou erro no carregamento. Usando margem padrão.");
             yPos = 25;
         }
 
-        // 2. DATA DE GERAÇÃO (Topo Direito)
+        // 2. DATA DE GERAÇÃO
         const dataGeracao = new Date().toLocaleString('pt-BR', {
             timeZone: 'America/Sao_Paulo',
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
-
         pdf.setTextColor(100);
         pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
         pdf.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, 12, { align: 'right' });
 
         // 3. SEÇÃO: INFORMAÇÕES DO CLIENTE / VEÍCULO
@@ -312,11 +302,9 @@ async function createComprovantePDF(dados, statusData) {
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
         pdf.text('INFORMAÇÕES DO CLIENTE / VEÍCULO', margin, yPos);
-        
         yPos += 2;
         pdf.setLineWidth(0.5);
-        pdf.setDrawColor(0);
-        pdf.line(margin, yPos, pageWidth - margin, yPos); // Linha horizontal
+        pdf.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 7;
 
         pdf.setFontSize(9);
@@ -325,40 +313,30 @@ async function createComprovantePDF(dados, statusData) {
         const col3 = 145;
         const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
 
+        // DESTAQUE: NOME E PLACA (Os primeiros campos da lista)
         const campos = [
-            { c1: ['Nome:', dados.nomeCliente], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
-            { c1: ['CPF:', dados.cpf], c2: ['Placa:', dados.placa], c3: ['Fabricante:', dados.fabricante] },
-            { c1: ['Modelo:', dados.modelo], c2: ['Ano:', dados.ano], c3: ['Motor:', dados.motor] },
-            { c1: ['Portas:', dados.portas], c2: ['Combustível:', dados.combustivel], c3: ['Tanque:', dados.tanque] },
-            { c1: ['KM:', dados.km], c2: ['Direção:', dados.direcao], c3: ['Ar:', dados.ar] },
-            { c1: ['Cor:', dados.cor], c2: ['Data Entrada:', dataEntradaFormatada], c3: ['Nº Ordem:', dados.numOrdem] }
+            { c1: ['CLIENTE:', (dados.nomeCliente || 'NÃO INFORMADO').toUpperCase()], c2: ['PLACA:', (dados.placa || '---').toUpperCase()], c3: ['Nº ORDEM:', dados.numOrdem] },
+            { c1: ['CPF:', dados.cpf], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
+            { c1: ['Modelo:', dados.modelo], c2: ['Ano:', dados.ano], c3: ['Fabricante:', dados.fabricante] },
+            { c1: ['KM:', dados.km], c2: ['Combustível:', dados.combustivel], c3: ['Cor:', dados.cor] },
+            { c1: ['Motor:', dados.motor], c2: ['Data Entrada:', dataEntradaFormatada], c3: ['Tanque:', dados.tanque] }
         ];
 
         campos.forEach(linha => {
-            // Coluna 1
-            pdf.setFont('helvetica', 'bold'); 
-            pdf.text(String(linha.c1[0]), col1, yPos);
-            pdf.setFont('helvetica', 'normal'); 
-            pdf.text(String(linha.c1[1] || '-'), col1 + 15, yPos);
-
-            // Coluna 2
-            pdf.setFont('helvetica', 'bold'); 
-            pdf.text(String(linha.c2[0]), col2, yPos);
-            pdf.setFont('helvetica', 'normal'); 
-            pdf.text(String(linha.c2[1] || '-'), col2 + 22, yPos);
-
-            // Coluna 3
-            pdf.setFont('helvetica', 'bold'); 
-            pdf.text(String(linha.c3[0]), col3, yPos);
-            pdf.setFont('helvetica', 'normal'); 
-            pdf.text(String(linha.c3[1] || '-'), col3 + 15, yPos);
+            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c1[0]), col1, yPos);
+            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c1[1] || '-'), col1 + 18, yPos);
             
+            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c2[0]), col2, yPos);
+            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c2[1] || '-'), col2 + 18, yPos);
+            
+            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c3[0]), col3, yPos);
+            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c3[1] || '-'), col3 + 20, yPos);
             yPos += 6;
         });
 
         yPos += 4;
 
-        // 4. ITENS INSPECIONADOS
+        // 4. DETALHAMENTO DA INSPEÇÃO
         const categorias = {
             "AVALIAÇÃO INICIAL": ['dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria'],
             "MOTOR": ['condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo', 'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios', 'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor'],
@@ -373,81 +351,89 @@ async function createComprovantePDF(dados, statusData) {
             "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe']
         };
 
-       pdf.setFontSize(11);
+        pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
         pdf.text('DETALHAMENTO DA INSPEÇÃO', margin, yPos);
         yPos += 2;
         pdf.line(margin, yPos, pageWidth - margin, yPos);
         yPos += 6;
 
-        pdf.setFontSize(8.5); // Aumentado levemente para leitura
+        pdf.setFontSize(8.5);
         for (const [titulo, ids] of Object.entries(categorias)) {
-            // Verificação de quebra de página
-            if (yPos > 275) { pdf.addPage(); yPos = 20; }
-            
+            if (yPos > 270) { pdf.addPage(); yPos = 20; }
             pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 102, 204); // Azul categoria
+            pdf.setTextColor(0, 102, 204);
             pdf.text(titulo, margin, yPos);
             yPos += 5;
             
             ids.forEach((id, index) => {
-                if (yPos > 285) { pdf.addPage(); yPos = 20; }
-                
+                if (yPos > 280) { pdf.addPage(); yPos = 20; }
                 let currentX = (index % 2 === 0) ? margin + 5 : 110;
-                const status = statusData ? statusData[id] : null;
-                let prefixo = '[   ]';
-                
-                // Configuração de Cores e Prefixo
-                if (status === 'ok' || (status && status.includes('🟢'))) { 
-                    pdf.setTextColor(0, 128, 0); // Verde Escuro
-                    prefixo = '[ OK ]'; 
-                } else if (status === 'atencao' || (status && status.includes('🟡'))) { 
-                    pdf.setTextColor(200, 120, 0); // Laranja Forte
-                    prefixo = '[ ! ]'; 
-                } else if (status === 'critico' || (status && status.includes('🔴'))) { 
-                    pdf.setTextColor(180, 0, 0); // Vermelho Escuro
-                    prefixo = '[ X ]'; 
-                } else { 
-                    pdf.setTextColor(0, 0, 0); // PRETO PURO para itens sem marcação
-                    prefixo = '[   ]'; 
-                }
+                const statusTexto = dados[id] || ''; 
+                let prefixo = '[   ]', r=150, g=150, b=150;
 
-                const nomeFormatado = id.replace(/_/g, ' ').toUpperCase();
-                
-                // Escreve o Prefixo (OK, !, X)
+                if (statusTexto.includes('🟢')) { r=0; g=128; b=0; prefixo = '[ OK ]'; }
+                else if (statusTexto.includes('🟡')) { r=200; g=120; b=0; prefixo = '[ ! ]'; }
+                else if (statusTexto.includes('🔴')) { r=180; g=0; b=0; prefixo = '[ X ]'; }
+
+                pdf.setTextColor(r, g, b);
                 pdf.setFont('helvetica', 'bold');
                 pdf.text(prefixo, currentX, yPos);
-                
-                // Escreve o Nome do Item (Sempre em Preto e Negrito para destaque)
                 pdf.setTextColor(0, 0, 0); 
-                pdf.text(nomeFormatado, currentX + 12, yPos);
+                pdf.text(id.replace(/_/g, ' ').toUpperCase(), currentX + 12, yPos);
                 
                 if (index % 2 !== 0 || index === ids.length - 1) yPos += 5;
             });
             yPos += 2;
         }
 
-        // 5. ASSINATURA
-        yPos += 15;
-        if (yPos > 260) { pdf.addPage(); yPos = 30; }
+        // 5. RESUMO TOTALIZADOR
+        const tOk = parseInt(dados.total_ok || 0);
+        const tAtencao = parseInt(dados.total_atencao || 0);
+        const tCritico = parseInt(dados.total_critico || 0);
+        const totalGeral = tOk + tAtencao + tCritico;
+
+        yPos += 10;
+        if (yPos > 240) { pdf.addPage(); yPos = 20; }
+
+        pdf.setDrawColor(200);
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(margin, yPos, pageWidth - (margin * 2), 25, 'F');
         
-        pdf.setDrawColor(0); // Linha de assinatura preta
+        yPos += 7;
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0);
+        pdf.text('RESUMO DA AVALIAÇÃO FINAL', pageWidth / 2, yPos, { align: 'center' });
+        
+        yPos += 10;
+        pdf.setTextColor(0, 128, 0);
+        pdf.text(`CONFORME: ${tOk}`, margin + 10, yPos);
+        pdf.setTextColor(200, 120, 0);
+        pdf.text(`ATENÇÃO: ${tAtencao}`, margin + 55, yPos);
+        pdf.setTextColor(180, 0, 0);
+        pdf.text(`CRÍTICO: ${tCritico}`, margin + 100, yPos);
+        pdf.setTextColor(0, 102, 204);
+        pdf.text(`TOTAL AVALIADO: ${totalGeral}`, pageWidth - margin - 50, yPos);
+
+        // 6. ASSINATURA
+        yPos += 25;
+        if (yPos > 275) { pdf.addPage(); yPos = 30; }
+        pdf.setDrawColor(0);
         pdf.line(60, yPos + 10, pageWidth - 60, yPos + 10);
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(0);
         pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
-        // SALVAMENTO
-        pdf.save(`Checklist_${dados.placa || 'Veiculo'}.pdf`);
-        if (typeof showComprovanteSuccess === "function") showComprovanteSuccess();
+        // Nome do arquivo incluindo Nome do Cliente e Placa
+        const nomeArquivo = `Checklist_${dados.nomeCliente || 'Cliente'}_${dados.placa || 'SemPlaca'}.pdf`;
+        pdf.save(nomeArquivo);
 
     } catch (error) {
-        console.error("Erro geral na geração do PDF:", error);
-        alert("Erro ao gerar o PDF. Verifique o console.");
+        console.error("Erro ao gerar PDF:", error);
     }
 }
-
 
 function showComprovanteTela(dados) {
     // Criar uma tela de comprovante HTML (fallback)
@@ -870,7 +856,7 @@ setTimeout(() => {
         toggleButtons(false);
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 30000);;
+}, 30000);
 
 
 
