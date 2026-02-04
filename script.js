@@ -314,14 +314,18 @@ async function createComprovantePDF(dados) {
         const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
 
         // DESTAQUE: NOME E PLACA (Os primeiros campos da lista)
-       const campos = [
-    { c1: ['CLIENTE:', (dados.nomeCliente || 'NÃO INFORMADO').toUpperCase()], c2: ['PLACA:', (dados.placa || '---').toUpperCase()], c3: ['Nº ORDEM:', dados.numOrdem] },
-    { c1: ['CPF:', dados.cpf], c2: ['Telefones:', dados.telefones], c3: ['Email:', dados.email] },
-    { c1: ['Fabricante:', dados.fabricante], c2: ['Modelo:', dados.modelo], c3: ['Ano:', dados.ano] },
-    { c1: ['Motor:', dados.motor], c2: ['Portas:', dados.portas], c3: ['Cor:', dados.cor] },
-    { c1: ['KM:', dados.km], c2: ['Combustível:', dados.combustivel], c3: ['Tanque:', dados.tanque] },
-    { c1: ['Direção:', dados.direcao], c2: ['Ar Cond.:', dados.ar], c3: ['Data Entrada:', dataEntradaFormatada] }
-];
+      const campos = [
+            { 
+                c1: ['PLACA:', (dados.placa || '---').toUpperCase()], 
+                c2: ['MODELO:', (dados.modelo || '---').toUpperCase()], 
+                c3: ['COR:', (dados.cor || '---').toUpperCase()] 
+            },
+            { 
+                c1: ['DATA :', dataEntradaFormatada], 
+                c2: ['Nº ORDEM:', dados.numOrdem || '---'], 
+                c3: ['', ''] // Espaço vazio para manter o alinhamento de 3 colunas
+            }
+        ];
 
         campos.forEach(linha => {
             pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c1[0]), col1, yPos);
@@ -857,7 +861,8 @@ setTimeout(() => {
         toggleButtons(false);
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 30000);
+}, 30000);;
+
 
 
 
