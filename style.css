@@ -498,3 +498,15 @@ button {
         width: 100% !important;
     }
 }
+
+
+/* Isso remove os campos da visualização completamente */
+.hidden-row {
+    display: none !important;
+}
+
+
+@media print {
+    .no-print { display: none !important; }
+}
+}
