@@ -1,5 +1,5 @@
 // Configuração - SUBSTITUA COM SUA URL DO APPS SCRIPT
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwxd10NhVC9waweMdItmAnM0K33Ebo7_IbWVjlDSyoLbEEEbkk9kdw8_32WV71_wy-M/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTJyvUvnJKpvY7kwm6pS-LKSvCHiwV6dY05Yk9cgbhrbzLmBBKEsDbRcZ5VPbVZrcT/exec';
 
 async function handleLogin() {
     const userValue = document.getElementById('user').value;
@@ -380,7 +380,9 @@ async function createComprovantePDF(dados) {
             { 
                 c1: ['DATA :', dataEntradaFormatada], 
                 c2: ['Nº ORDEM:', dados.numOrdem || '---'], 
-                c3: ['', ''] // Espaço vazio para manter o alinhamento de 3 colunas
+               // c3: ['', ''] // Espaço vazio para manter o alinhamento de 3 colunas
+                // ADICIONADO: E-mail do técnico nesta linha
+                c3: ['TÉCNICO:', (dados.tecnico_logado || '---')]
             }
         ];
 
@@ -486,6 +488,7 @@ async function createComprovantePDF(dados) {
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0);
+        
         pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
         // Nome do arquivo incluindo Nome do Cliente e Placa
@@ -744,12 +747,17 @@ async function saveToGoogleSheetConfirmed() {
             else checklistData[id] = 'NÃO AVALIADO';
         });
 
+
+        
+
         // Combinar todos os dados
         updateProgressBar(60);
         const allData = {
             ...clientData,
             ...checklistData,
             timestamp: new Date().toLocaleString('pt-BR'),
+            // ADICIONE ESTA LINHA ABAIXO:
+            tecnico_logado: document.getElementById('user-display').innerText,
             total_ok: document.getElementById('count-ok').textContent,
             total_atencao: document.getElementById('count-atencao').textContent,
             total_critico: document.getElementById('count-critico').textContent
@@ -918,7 +926,8 @@ setTimeout(() => {
         toggleButtons(false);
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 30000);;;
+}, 20000);
+
 
 
 
