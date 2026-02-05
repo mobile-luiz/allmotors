@@ -1,5 +1,62 @@
 // Configuração - SUBSTITUA COM SUA URL DO APPS SCRIPT
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzbUJWeeUgqidlyTJvGszLba4-VHZdVuo2dERFAGVFCJ6egc6TBNpVuE3jZ3mEX6t5k/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwxd10NhVC9waweMdItmAnM0K33Ebo7_IbWVjlDSyoLbEEEbkk9kdw8_32WV71_wy-M/exec';
+
+async function handleLogin() {
+    const userValue = document.getElementById('user').value;
+    const passValue = document.getElementById('pass').value;
+    const btn = document.getElementById('login-btn');
+    const msg = document.getElementById('login-msg');
+
+    if (!userValue || !passValue) {
+        msg.innerText = "Preencha todos os campos.";
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Autenticando...";
+    msg.innerText = "";
+
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            // Removido mode: 'no-cors' para permitir a leitura da resposta JSON
+            body: JSON.stringify({
+                action: 'login',
+                usuario: userValue,
+                senha: passValue
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // EXIBE O E-MAIL RETORNADO DA PLANILHA (OU O NOME SE O E-MAIL ESTIVER VAZIO)
+            // Usamos result.userEmail que vem da nova versão do Google Apps Script
+            const displayTarget = document.getElementById('user-display');
+            if (displayTarget) {
+                displayTarget.innerText = result.userEmail;
+            }
+            
+            // Troca de tela
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            
+            // Limpa a senha por segurança
+            document.getElementById('pass').value = "";
+            
+            console.log("Login realizado com sucesso para:", result.userEmail);
+        } else {
+            msg.innerText = result.message || "Usuário ou senha incorretos.";
+        }
+    } catch (error) {
+        console.error("Erro técnico no login:", error);
+        msg.innerText = "Erro de conexão. Verifique se a Internet está OK e se o Script foi publicado como 'Qualquer um'.";
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "ENTRAR";
+    }
+}
+
 
 // Array com todos os IDs dos itens (baseado na sua lista atualizada)
 const itemIds = [
@@ -861,7 +918,8 @@ setTimeout(() => {
         toggleButtons(false);
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 30000);;
+}, 30000);;;
+
 
 
 
