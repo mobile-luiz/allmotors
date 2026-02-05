@@ -509,4 +509,59 @@ button {
 @media print {
     .no-print { display: none !important; }
 }
+
+
+
+
+/* Adicione isso ao seu arquivo style.css */
+.item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+    flex-wrap: wrap;
+}
+
+.item-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.item-text {
+    flex: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 8px;
+}
+
+.descricao-container {
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #e0e0e0;
+}
+
+.descricao-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 40px;
+    box-sizing: border-box;
+}
+
+.descricao-input:focus {
+    outline: none;
+    border-color: #28a745;
+    box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
 }

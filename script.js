@@ -1,5 +1,8 @@
 // Configuração - SUBSTITUA COM SUA URL DO APPS SCRIPT
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTJyvUvnJKpvY7kwm6pS-LKSvCHiwV6dY05Yk9cgbhrbzLmBBKEsDbRcZ5VPbVZrcT/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzd4xF9phXAqgilDCJLd6vYG0fVVh3Sh86cEZv_RuzaUHEWKlN9mYKrln_cXwoyPlDO/exec';
+
+// Sistema de cache para evitar múltiplos envios
+let isSaving = false;
 
 async function handleLogin() {
     const userValue = document.getElementById('user').value;
@@ -19,7 +22,6 @@ async function handleLogin() {
     try {
         const response = await fetch(SCRIPT_URL, {
             method: 'POST',
-            // Removido mode: 'no-cors' para permitir a leitura da resposta JSON
             body: JSON.stringify({
                 action: 'login',
                 usuario: userValue,
@@ -30,19 +32,17 @@ async function handleLogin() {
         const result = await response.json();
 
         if (result.success) {
-            // EXIBE O E-MAIL RETORNADO DA PLANILHA (OU O NOME SE O E-MAIL ESTIVER VAZIO)
-            // Usamos result.userEmail que vem da nova versão do Google Apps Script
             const displayTarget = document.getElementById('user-display');
             if (displayTarget) {
                 displayTarget.innerText = result.userEmail;
             }
             
-            // Troca de tela
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-content').style.display = 'block';
-            
-            // Limpa a senha por segurança
             document.getElementById('pass').value = "";
+            
+            // Inicializar os campos de descrição
+            setTimeout(initializeDescricaoFields, 100);
             
             console.log("Login realizado com sucesso para:", result.userEmail);
         } else {
@@ -50,15 +50,14 @@ async function handleLogin() {
         }
     } catch (error) {
         console.error("Erro técnico no login:", error);
-        msg.innerText = "Erro de conexão. Verifique se a Internet está OK e se o Script foi publicado como 'Qualquer um'.";
+        msg.innerText = "Erro de conexão. Verifique sua Internet.";
     } finally {
         btn.disabled = false;
         btn.innerText = "ENTRAR";
     }
 }
 
-
-// Array com todos os IDs dos itens (baseado na sua lista atualizada)
+// Array com todos os IDs dos itens
 const itemIds = [
     // Avaliação Inicial
     'dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria',
@@ -120,6 +119,29 @@ const textFieldIds = [
 
 // Objeto para armazenar o status de cada item
 const statusData = {};
+// Objeto para armazenar as descrições dos técnicos
+const descricaoData = {};
+
+// Função para inicializar campos de descrição
+function initializeDescricaoFields() {
+    console.log('Inicializando campos de descrição...');
+    
+    itemIds.forEach(id => {
+        // Inicializar dados
+        statusData[id] = null;
+        descricaoData[id] = '';
+        
+        // Encontrar ou criar campo de descrição
+        const descricaoInput = document.querySelector(`.descricao-input[data-id="descricao_${id}"]`);
+        if (descricaoInput) {
+            descricaoInput.addEventListener('input', function() {
+                descricaoData[id] = this.value.trim();
+            });
+        }
+    });
+    
+    console.log('Campos de descrição inicializados:', itemIds.length);
+}
 
 // Sistema de mensagens
 function showMessage(text, isError = false) {
@@ -164,6 +186,7 @@ function toggleButtons(disable) {
     const buttons = document.querySelectorAll('button');
     const checkboxes = document.querySelectorAll('.status-checkbox');
     const textFields = document.querySelectorAll('input[type="text"], input[type="date"]');
+    const textareas = document.querySelectorAll('.descricao-input');
     
     buttons.forEach(button => {
         button.disabled = disable;
@@ -181,6 +204,12 @@ function toggleButtons(disable) {
         field.style.opacity = disable ? '0.5' : '1';
         field.style.backgroundColor = disable ? '#f5f5f5' : 'white';
     });
+    
+    textareas.forEach(textarea => {
+        textarea.disabled = disable;
+        textarea.style.opacity = disable ? '0.5' : '1';
+        textarea.style.backgroundColor = disable ? '#f5f5f5' : 'white';
+    });
 }
 
 // Modal de confirmação
@@ -194,7 +223,10 @@ function closeModal() {
 
 function confirmSave() {
     closeModal();
-    saveToGoogleSheetConfirmed();
+    if (!isSaving) {
+        isSaving = true;
+        saveToGoogleSheetConfirmed();
+    }
 }
 
 // Sistema de status
@@ -214,34 +246,65 @@ function updateCounters() {
 }
 
 function selectStatus(checkbox) {
-    if (document.querySelectorAll('button').length > 0 && document.querySelectorAll('button')[0].disabled) {
-        return; // Não permite seleção se botões estão desabilitados
+    if (isSaving) {
+        return; // Não permite seleção se está salvando
     }
     
     const itemId = checkbox.getAttribute('data-id');
     const status = checkbox.getAttribute('data-status');
     
+    // Desmarcar todas as checkboxes deste item
     document.querySelectorAll(`.status-checkbox[data-id="${itemId}"]`).forEach(cb => {
         cb.classList.remove('checked');
     });
     
+    // Marcar a checkbox clicada
     checkbox.classList.add('checked');
     statusData[itemId] = status;
+    
+    // Destacar campo de descrição correspondente
+    const descricaoInput = document.querySelector(`.descricao-input[data-id="descricao_${itemId}"]`);
+    if (descricaoInput) {
+        descricaoInput.style.borderLeft = "4px solid " + 
+            (status === 'ok' ? '#28a745' : 
+             status === 'atencao' ? '#ffc107' : 
+             '#dc3545');
+        
+        // Focar no campo de descrição para status não OK
+        if (status !== 'ok') {
+            setTimeout(() => {
+                descricaoInput.focus();
+            }, 100);
+        }
+    }
+    
     updateCounters();
 }
 
 // Sistema de limpeza
 function clearAllFields() {
+    // Limpar campos de texto
     textFieldIds.forEach(fieldId => {
         const field = document.getElementById(fieldId);
         if (field) field.value = '';
     });
 
+    // Limpar status
     itemIds.forEach(id => {
         statusData[id] = null;
+        descricaoData[id] = '';
+        
+        // Limpar checkboxes
         document.querySelectorAll(`.status-checkbox[data-id="${id}"]`).forEach(cb => {
             cb.classList.remove('checked');
         });
+        
+        // Limpar campos de descrição
+        const descricaoInput = document.querySelector(`.descricao-input[data-id="descricao_${id}"]`);
+        if (descricaoInput) {
+            descricaoInput.value = '';
+            descricaoInput.style.borderLeft = '';
+        }
     });
     
     updateCounters();
@@ -252,17 +315,18 @@ function clearAllFields() {
 async function generateComprovantePDF(dadosSalvos) {
     return new Promise((resolve) => {
         try {
-            // Verificar se jsPDF está disponível
             if (typeof jsPDF === 'undefined') {
                 console.error('Biblioteca jsPDF não carregada');
                 // Tentar carregar dinamicamente
-                loadJSPDF().then(() => {
-                    createComprovantePDF(dadosSalvos).then(resolve);
-                }).catch(() => {
-                    // Fallback sem PDF
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                script.onload = () => createComprovantePDF(dadosSalvos).then(resolve);
+                script.onerror = () => {
+                    console.warn('Falha ao carregar jsPDF, exibindo na tela');
                     showComprovanteTela(dadosSalvos);
                     resolve();
-                });
+                };
+                document.head.appendChild(script);
                 return;
             }
             
@@ -276,36 +340,16 @@ async function generateComprovantePDF(dadosSalvos) {
     });
 }
 
-async function loadJSPDF() {
-    return new Promise((resolve, reject) => {
-        if (typeof jsPDF !== 'undefined') {
-            resolve();
-            return;
-        }
-        
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject();
-        document.head.appendChild(script);
-    });
-}
-/**
- * Função auxiliar para carregar a imagem local
- */
 function loadImage(url) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "Anonymous"; 
         img.src = url;
         img.onload = () => resolve(img);
-        img.onerror = (e) => reject(new Error("Não foi possível carregar a imagem em: " + url));
+        img.onerror = (e) => reject(new Error("Não foi possível carregar a imagem"));
     });
 }
 
-/**
- * Função para formatar data (AAAA-MM-DD para DD/MM/AAAA)
- */
 function formatarDataBR(dataString) {
     if (!dataString) return '-';
     const partes = dataString.split('-');
@@ -313,12 +357,6 @@ function formatarDataBR(dataString) {
     return dataString;
 }
 
-/**
- * Função principal de geração do PDF
- */
-/**
- * Função principal de geração do PDF corrigida
- */
 async function createComprovantePDF(dados) {
     try {
         const { jsPDF } = window.jspdf;
@@ -341,6 +379,7 @@ async function createComprovantePDF(dados) {
             pdf.addImage(logoImg, 'PNG', xLogo, yPos, finalWidth, finalHeight);
             yPos += finalHeight + 10; 
         } catch (e) {
+            console.warn('Logo não encontrada, continuando sem imagem');
             yPos = 25;
         }
 
@@ -370,37 +409,40 @@ async function createComprovantePDF(dados) {
         const col3 = 145;
         const dataEntradaFormatada = formatarDataBR(dados.dataEntrada);
 
-        // DESTAQUE: NOME E PLACA (Os primeiros campos da lista)
-      const campos = [
+        const campos = [
             { 
                 c1: ['PLACA:', (dados.placa || '---').toUpperCase()], 
                 c2: ['MODELO:', (dados.modelo || '---').toUpperCase()], 
                 c3: ['COR:', (dados.cor || '---').toUpperCase()] 
             },
             { 
-                c1: ['DATA :', dataEntradaFormatada], 
+                c1: ['DATA:', dataEntradaFormatada], 
                 c2: ['Nº ORDEM:', dados.numOrdem || '---'], 
-               // c3: ['', ''] // Espaço vazio para manter o alinhamento de 3 colunas
-                // ADICIONADO: E-mail do técnico nesta linha
                 c3: ['TÉCNICO:', (dados.tecnico_logado || '---')]
             }
         ];
 
         campos.forEach(linha => {
-            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c1[0]), col1, yPos);
-            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c1[1] || '-'), col1 + 18, yPos);
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c1[0]), col1, yPos);
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c1[1] || '-'), col1 + 18, yPos);
             
-            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c2[0]), col2, yPos);
-            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c2[1] || '-'), col2 + 18, yPos);
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c2[0]), col2, yPos);
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c2[1] || '-'), col2 + 18, yPos);
             
-            pdf.setFont('helvetica', 'bold'); pdf.text(String(linha.c3[0]), col3, yPos);
-            pdf.setFont('helvetica', 'normal'); pdf.text(String(linha.c3[1] || '-'), col3 + 20, yPos);
+            pdf.setFont('helvetica', 'bold'); 
+            pdf.text(String(linha.c3[0]), col3, yPos);
+            pdf.setFont('helvetica', 'normal'); 
+            pdf.text(String(linha.c3[1] || '-'), col3 + 20, yPos);
             yPos += 6;
         });
 
         yPos += 4;
 
-        // 4. DETALHAMENTO DA INSPEÇÃO
+        // 4. DETALHAMENTO DA INSPEÇÃO COM DESCRIÇÕES
         const categorias = {
             "AVALIAÇÃO INICIAL": ['dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria'],
             "MOTOR": ['condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo', 'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios', 'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor'],
@@ -424,29 +466,73 @@ async function createComprovantePDF(dados) {
 
         pdf.setFontSize(8.5);
         for (const [titulo, ids] of Object.entries(categorias)) {
-            if (yPos > 270) { pdf.addPage(); yPos = 20; }
+            if (yPos > 270) { 
+                pdf.addPage(); 
+                yPos = 20; 
+            }
+            
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(0, 102, 204);
             pdf.text(titulo, margin, yPos);
             yPos += 5;
             
             ids.forEach((id, index) => {
-                if (yPos > 280) { pdf.addPage(); yPos = 20; }
+                if (yPos > 280) { 
+                    pdf.addPage(); 
+                    yPos = 20; 
+                }
+                
                 let currentX = (index % 2 === 0) ? margin + 5 : 110;
                 const statusTexto = dados[id] || ''; 
                 let prefixo = '[   ]', r=150, g=150, b=150;
 
-                if (statusTexto.includes('🟢')) { r=0; g=128; b=0; prefixo = '[ OK ]'; }
-                else if (statusTexto.includes('🟡')) { r=200; g=120; b=0; prefixo = '[ ! ]'; }
-                else if (statusTexto.includes('🔴')) { r=180; g=0; b=0; prefixo = '[ X ]'; }
+                if (statusTexto.includes('🟢')) { 
+                    r=0; g=128; b=0; 
+                    prefixo = '[ OK ]'; 
+                } else if (statusTexto.includes('🟡')) { 
+                    r=200; g=120; b=0; 
+                    prefixo = '[ ! ]'; 
+                } else if (statusTexto.includes('🔴')) { 
+                    r=180; g=0; b=0; 
+                    prefixo = '[ X ]'; 
+                }
 
                 pdf.setTextColor(r, g, b);
                 pdf.setFont('helvetica', 'bold');
                 pdf.text(prefixo, currentX, yPos);
                 pdf.setTextColor(0, 0, 0); 
-                pdf.text(id.replace(/_/g, ' ').toUpperCase(), currentX + 12, yPos);
                 
-                if (index % 2 !== 0 || index === ids.length - 1) yPos += 5;
+                const itemLabel = id.replace(/_/g, ' ').toUpperCase();
+                pdf.text(itemLabel, currentX + 12, yPos);
+                
+                // Adicionar descrição se existir
+                const descricaoKey = `descricao_${id}`;
+                if (dados[descricaoKey] && dados[descricaoKey].trim()) {
+                    yPos += 3.5;
+                    pdf.setFontSize(7);
+                    pdf.setTextColor(80, 80, 80);
+                    pdf.setFont('helvetica', 'italic');
+                    
+                    // Quebrar descrição longa
+                    const descricao = dados[descricaoKey];
+                    const maxWidth = 90;
+                    let lines = pdf.splitTextToSize(`Observação: ${descricao}`, maxWidth);
+                    
+                    lines.forEach(line => {
+                        if (yPos > 280) { 
+                            pdf.addPage(); 
+                            yPos = 20; 
+                        }
+                        pdf.text(line, currentX + 12, yPos);
+                        yPos += 3.5;
+                    });
+                    
+                    pdf.setFontSize(8.5);
+                }
+                
+                if (index % 2 !== 0 || index === ids.length - 1) {
+                    yPos += 5;
+                }
             });
             yPos += 2;
         }
@@ -458,7 +544,10 @@ async function createComprovantePDF(dados) {
         const totalGeral = tOk + tAtencao + tCritico;
 
         yPos += 10;
-        if (yPos > 240) { pdf.addPage(); yPos = 20; }
+        if (yPos > 240) { 
+            pdf.addPage(); 
+            yPos = 20; 
+        }
 
         pdf.setDrawColor(200);
         pdf.setFillColor(245, 245, 245);
@@ -482,26 +571,29 @@ async function createComprovantePDF(dados) {
 
         // 6. ASSINATURA
         yPos += 25;
-        if (yPos > 275) { pdf.addPage(); yPos = 30; }
+        if (yPos > 275) { 
+            pdf.addPage(); 
+            yPos = 30; 
+        }
         pdf.setDrawColor(0);
         pdf.line(60, yPos + 10, pageWidth - 60, yPos + 10);
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0);
-        
         pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
-        // Nome do arquivo incluindo Nome do Cliente e Placa
+        // Nome do arquivo
         const nomeArquivo = `Checklist_${dados.nomeCliente || 'Cliente'}_${dados.placa || 'SemPlaca'}.pdf`;
         pdf.save(nomeArquivo);
 
+        return true;
     } catch (error) {
         console.error("Erro ao gerar PDF:", error);
+        return false;
     }
 }
 
 function showComprovanteTela(dados) {
-    // Criar uma tela de comprovante HTML (fallback)
     const comprovanteDiv = document.createElement('div');
     comprovanteDiv.id = 'comprovante-tela';
     comprovanteDiv.style.cssText = `
@@ -526,7 +618,7 @@ function showComprovanteTela(dados) {
             <p style="margin: 5px 0 0 0;">COMPROVANTE DE INSPEÇÃO</p>
         </div>
         
-        <div style="text-align: right; color: #0a0101dc; font-size: 12px; margin-bottom: 20px;">
+        <div style="text-align: right; color: #666; font-size: 12px; margin-bottom: 20px;">
             ID: ${transactionId}<br>
             ${dataFormatada}
         </div>
@@ -552,6 +644,9 @@ function showComprovanteTela(dados) {
                 
                 <div><strong>ORDEM SERVIÇO:</strong></div>
                 <div>${dados.numOrdem || 'Não informado'}</div>
+                
+                <div><strong>TÉCNICO RESPONSÁVEL:</strong></div>
+                <div>${dados.tecnico_logado || 'Não informado'}</div>
             </div>
         </div>
         
@@ -589,7 +684,8 @@ function showComprovanteTela(dados) {
                         const status = dados[id];
                         if (status && status.includes('🔴') && count < 5) {
                             const label = id.replace(/_/g, ' ').toUpperCase();
-                            items += `<li>${label}</li>`;
+                            const descricao = dados[`descricao_${id}`] || '';
+                            items += `<li><strong>${label}:</strong> ${descricao || 'Sem descrição'}</li>`;
                             count++;
                         }
                     });
@@ -598,6 +694,31 @@ function showComprovanteTela(dados) {
             </ul>
         </div>
         ` : ''}
+        
+        ${(() => {
+            let itemsComDescricao = '';
+            let count = 0;
+            itemIds.forEach(id => {
+                const descricao = dados[`descricao_${id}`];
+                if (descricao && descricao.trim() && count < 10) {
+                    const label = id.replace(/_/g, ' ').toUpperCase();
+                    itemsComDescricao += `<li><strong>${label}:</strong> ${descricao}</li>`;
+                    count++;
+                }
+            });
+            
+            if (itemsComDescricao) {
+                return `
+                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin: 20px 0; background: #f9f9f9;">
+                    <h4 style="color: #333; margin-top: 0;">📝 OBSERVAÇÕES DO TÉCNICO</h4>
+                    <ul style="margin: 10px 0;">
+                        ${itemsComDescricao}
+                    </ul>
+                </div>
+                `;
+            }
+            return '';
+        })()}
         
         <div style="border-top: 1px solid #ccc; padding-top: 20px; margin-top: 30px; font-size: 12px; color: #666;">
             <p><em>Este comprovante serve como registro oficial da inspeção realizada.</em></p>
@@ -621,7 +742,6 @@ function showComprovanteTela(dados) {
     
     document.body.appendChild(comprovanteDiv);
     
-    // Adicionar as funções ao escopo global temporariamente
     window.imprimirComprovante = function() {
         const comprovanteContent = comprovanteDiv.innerHTML;
         const printWindow = window.open('', '_blank');
@@ -650,16 +770,10 @@ function showComprovanteTela(dados) {
         document.body.removeChild(comprovanteDiv);
         delete window.imprimirComprovante;
         delete window.fecharComprovante;
-        // Limpar formulário após fechar o comprovante
-        setTimeout(() => {
-            clearAllFields();
-            showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
-        }, 500);
     };
 }
 
 function showComprovanteSuccess() {
-    // Mostrar mensagem de sucesso
     const successDiv = document.createElement('div');
     successDiv.style.cssText = `
         position: fixed;
@@ -686,7 +800,6 @@ function showComprovanteSuccess() {
     
     document.body.appendChild(successDiv);
     
-    // Remover após 5 segundos
     setTimeout(() => {
         if (successDiv.parentNode) {
             successDiv.style.animation = 'slideOut 0.3s ease';
@@ -698,7 +811,7 @@ function showComprovanteSuccess() {
         }
     }, 5000);
     
-    // Adicionar estilos de animação
+    // Adicionar estilos CSS para animações
     if (!document.querySelector('#comprovante-styles')) {
         const style = document.createElement('style');
         style.id = 'comprovante-styles';
@@ -718,8 +831,42 @@ function showComprovanteSuccess() {
 
 // ==================== SISTEMA DE SALVAMENTO ====================
 
-// Sistema de salvamento no Google Sheets
 async function saveToGoogleSheet() {
+    // Evitar múltiplos cliques
+    if (isSaving) {
+        showMessage('Aguarde o salvamento anterior ser concluído.', true);
+        return;
+    }
+
+    // Verificar campos obrigatórios
+    const camposObrigatorios = ['placa', 'modelo', 'dataEntrada', 'numOrdem'];
+    let camposFaltando = [];
+    
+    camposObrigatorios.forEach(campo => {
+        const valor = document.getElementById(campo).value.trim();
+        if (!valor) {
+            camposFaltando.push(campo);
+        }
+    });
+    
+    // Verificar se pelo menos um status foi selecionado
+    let statusSelecionados = 0;
+    itemIds.forEach(id => {
+        if (statusData[id]) {
+            statusSelecionados++;
+        }
+    });
+    
+    if (camposFaltando.length > 0) {
+        showMessage(`Preencha os campos obrigatórios: ${camposFaltando.join(', ')}`, true);
+        return;
+    }
+    
+    if (statusSelecionados === 0) {
+        showMessage('Selecione pelo menos um item no checklist', true);
+        return;
+    }
+    
     openModal();
 }
 
@@ -733,22 +880,37 @@ async function saveToGoogleSheetConfirmed() {
         updateProgressBar(20);
         const clientData = {};
         textFieldIds.forEach(fieldId => {
-            clientData[fieldId] = document.getElementById(fieldId).value;
+            const element = document.getElementById(fieldId);
+            clientData[fieldId] = element ? element.value : '';
         });
 
-        // Preparar dados do checklist
+        // Preparar dados do checklist COM DESCRIÇÃO JUNTA
         updateProgressBar(40);
         const checklistData = {};
+        
         itemIds.forEach(id => {
             const status = statusData[id];
-            if (status === 'ok') checklistData[id] = '🟢 OK';
-            else if (status === 'atencao') checklistData[id] = '🟡 ATENÇÃO';
-            else if (status === 'critico') checklistData[id] = '🔴 CRÍTICO';
-            else checklistData[id] = 'NÃO AVALIADO';
+            const descricao = descricaoData[id] || '';
+            
+            // Se não há status selecionado, usar "NÃO AVALIADO"
+            if (!status) {
+                checklistData[id] = 'NÃO AVALIADO';
+                return;
+            }
+            
+            // Determinar emoji e texto baseado no status
+            let emojiTexto = '';
+            if (status === 'ok') emojiTexto = '🟢 OK';
+            else if (status === 'atencao') emojiTexto = '🟡 ATENÇÃO';
+            else if (status === 'critico') emojiTexto = '🔴 CRÍTICO';
+            
+            // Se há descrição, adicionar após o status
+            if (descricao) {
+                checklistData[id] = `${emojiTexto} - ${descricao}`;
+            } else {
+                checklistData[id] = emojiTexto;
+            }
         });
-
-
-        
 
         // Combinar todos os dados
         updateProgressBar(60);
@@ -756,18 +918,26 @@ async function saveToGoogleSheetConfirmed() {
             ...clientData,
             ...checklistData,
             timestamp: new Date().toLocaleString('pt-BR'),
-            // ADICIONE ESTA LINHA ABAIXO:
             tecnico_logado: document.getElementById('user-display').innerText,
             total_ok: document.getElementById('count-ok').textContent,
             total_atencao: document.getElementById('count-atencao').textContent,
             total_critico: document.getElementById('count-critico').textContent
         };
         
+        // Log para debug
+        console.log('Dados a serem enviados para o Google Sheets:');
+        console.log('Cliente:', clientData.nomeCliente, 'Placa:', clientData.placa);
+        console.log('Itens com status e descrição:', 
+            Object.entries(checklistData)
+                .filter(([key, value]) => !value.includes('NÃO AVALIADO'))
+                .map(([key, value]) => `${key}: ${value}`)
+        );
+        
         showMessage('Enviando dados para o servidor...', false);
         updateProgressBar(80);
         
         // Enviar para Google Sheets
-        await fetch(SCRIPT_URL, {
+        const response = await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: {
@@ -782,34 +952,41 @@ async function saveToGoogleSheetConfirmed() {
         
         showMessage('✓ Dados salvos com sucesso! Gerando comprovante...');
         
-        // Reativar botões
-        toggleButtons(false);
+        // Preparar dados para o PDF (mantendo separado para o PDF)
+        const dadosParaPDF = {
+            ...allData,
+            // Adicionar descrições separadas para o PDF
+            ...Object.fromEntries(
+                itemIds.map(id => [`descricao_${id}`, descricaoData[id] || ''])
+            )
+        };
         
-        // GERAR PDF AUTOMATICAMENTE (como app de banco)
+        // GERAR PDF AUTOMATICAMENTE
+        const pdfGerado = await generateComprovantePDF(dadosParaPDF);
+        
+        if (pdfGerado) {
+            showComprovanteSuccess();
+        }
+        
+        // Limpar formulário após sucesso
         setTimeout(() => {
-            generateComprovantePDF(allData).then(() => {
-                // Limpar formulário automaticamente após 3 segundos do PDF gerado
-                setTimeout(() => {
-                    clearAllFields();
-                    showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
-                }, 3000);
-            });
-        }, 500);
+            clearAllFields();
+            showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
+        }, 3000);
         
     } catch (error) {
-        console.error('Erro:', error);
+        console.error('Erro ao salvar:', error);
+        showMessage('Erro ao salvar dados. Verifique a conexão.', true);
+    } finally {
         toggleProgressBar(false);
         toggleButtons(false);
-        showMessage('Erro ao salvar dados. Verifique a conexão.', true);
+        isSaving = false;
     }
 }
 
 // Limpar formulário
 function clearForm() {
-    // Verificar se algum botão está desabilitado
-    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
-    
-    if (anyButtonDisabled) {
+    if (isSaving) {
         showMessage('Aguarde o término da operação atual.', true);
         return;
     }
@@ -822,7 +999,6 @@ function clearForm() {
 
 // ==================== INICIALIZAÇÃO ====================
 
-// Inicialização - Barra de Progresso
 function createProgressBar() {
     const progressContainer = document.createElement('div');
     progressContainer.id = 'progress-bar';
@@ -858,6 +1034,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Inicializar statusData
     itemIds.forEach(id => {
         statusData[id] = null;
+        descricaoData[id] = '';
     });
     
     // Criar barra de progresso
@@ -868,6 +1045,9 @@ window.addEventListener('DOMContentLoaded', () => {
         checkbox.addEventListener('click', () => selectStatus(checkbox));
     });
     
+    // Inicializar campos de descrição
+    setTimeout(initializeDescricaoFields, 500);
+    
     // Atualizar contadores inicialmente
     updateCounters();
     
@@ -876,16 +1056,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // Atalhos de teclado
 document.addEventListener('keydown', (e) => {
-    // Verificar se algum botão está desabilitado
-    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
-    if (anyButtonDisabled) return;
+    if (isSaving) return;
     
-    // Ctrl + S para salvar
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         saveToGoogleSheet();
     }
-    // Ctrl + D para limpar
     if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
         e.preventDefault();
         clearForm();
@@ -894,14 +1070,12 @@ document.addEventListener('keydown', (e) => {
 
 // Aviso ao sair da página se houver dados não salvos
 window.addEventListener('beforeunload', (e) => {
-    // Verificar se algum botão está desabilitado (salvamento em andamento)
-    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
-    if (anyButtonDisabled) return;
+    if (isSaving) return;
     
-    // Verificar se há dados no formulário
-    const hasData = textFieldIds.some(fieldId => 
-        document.getElementById(fieldId).value.trim() !== ''
-    ) || itemIds.some(id => statusData[id]);
+    const hasData = textFieldIds.some(fieldId => {
+        const element = document.getElementById(fieldId);
+        return element && element.value.trim() !== '';
+    }) || itemIds.some(id => statusData[id]);
     
     if (hasData) {
         e.preventDefault();
@@ -910,27 +1084,15 @@ window.addEventListener('beforeunload', (e) => {
     }
 });
 
-// Função para imprimir (opcional)
-function printForm() {
-    window.print();
-}
-
 // Adicionar timeout de segurança
 setTimeout(() => {
-    const anyButtonDisabled = Array.from(document.querySelectorAll('button')).some(btn => btn.disabled);
     const progressBarVisible = document.getElementById('progress-bar')?.style.display === 'block';
     
-    if (anyButtonDisabled && progressBarVisible) {
+    if (isSaving && progressBarVisible) {
         console.log('Safety timeout: Reativando interface...');
         toggleProgressBar(false);
         toggleButtons(false);
+        isSaving = false;
         showMessage('Interface reativada automaticamente.', false);
     }
-}, 20000);
-
-
-
-
-
-
-
+}, 30000);
