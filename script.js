@@ -1,8 +1,86 @@
 // Configuração - SUBSTITUA COM SUA URL DO APPS SCRIPT
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzd4xF9phXAqgilDCJLd6vYG0fVVh3Sh86cEZv_RuzaUHEWKlN9mYKrln_cXwoyPlDO/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxwkbUiUGtu-nEA7xYwAZF5ZYVXyLoXvKrKlxx8mTbgU3IxvbcKgjzEl49k-o-OcT8l/exec';
 
 // Sistema de cache para evitar múltiplos envios
 let isSaving = false;
+
+// ==================== LISTA DE ITENS OBRIGATÓRIOS ====================
+// APENAS OS ITENS QUE REALMENTE DEVEM TER STATUS (99 itens)
+const itensObrigatorios = [
+    // Avaliação Inicial (4 itens)
+    'dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria',
+    
+    // Motor (12 itens)
+    'condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo',
+    'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios',
+    'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor',
+    
+    // Arrefecimento (8 itens)
+    'condicao_fluido_arref', 'vazamentos_arref', 'mangueiras_arref',
+    'bomba_agua', 'radiador', 'tampa_arref', 'reservatorio', 'eletroventilador',
+    
+    // Freios (10 itens)
+    'condicao_fluido_freio', 'flexiveis_freio', 'pastilhas_dianteira',
+    'discos_dianteiro', 'tambor_disco_traseiro', 'pastilhas_sapata_traseira',
+    'cilindro_roda', 'pincas', 'cabos_freio', 'modulo_abs',
+    
+    // Direção (7 itens)
+    'condicao_fluido_direcao', 'bomba_hidraulica', 'caixa_direcao',
+    'mangueiras_direcao', 'coluna', 'terminal_direcao', 'barra_axial',
+    
+    // Transmissão (13 itens)
+    'condicao_fluido_transmissao', 'vazamentos_transmissao', 'diferencial_ruidos',
+    'caixa_transferencia_ruidos', 'coifas_transmissao', 'homocinetica',
+    'trizeta_tulipa', 'semi_eixos', 'coxim_diferencial', 'carda_folga_ruido',
+    'rolamento_cubo_dianteiro', 'rolamento_cubo_traseiro', 'bolachao_carda',
+    
+    // Coxins (2 itens)
+    'coxins_motor', 'coxins_cambio',
+    
+    // Suspensão Dianteira (12 itens)
+    'bieletas_dianteira', 'buchas_bandeja_inf', 'buchas_bandeja_sup',
+    'pivo_dianteiro', 'bucha_barra_estabilizadora', 'bucha_quadro_dianteira',
+    'amortecedores_dianteiros', 'coxim_suspensao', 'rolamento_peso_dianteiro',
+    'coifa_batente_dianteiro', 'mola_dianteira', 'calco_mola_dianteira',
+    
+    // Suspensão Traseira (15 itens)
+    'bucha_manga_eixo', 'bucha_bandeja_inferior', 'bucha_bandeja_superior',
+    'bucha_braco_tensor', 'braco_auxiliar_bucha_pivo', 'bucha_braco_oscilante',
+    'calco_mola_traseira', 'batente_mola', 'mola_traseira',
+    'coifa_batente_traseiro', 'coxim_amortecedor', 'amortecedor_traseiro',
+    'bieleta_traseira', 'bucha_barra_estabilizadora_traseira', 'barra_estabilizadora_traseira',
+    
+    // Lâmpadas Dianteiras (6 itens)
+    'farol_baixo', 'farol_alto', 'lanterna_dianteira', 'neblina', 'pisca_dianteiro', 'drl',
+    
+    // Lâmpadas Traseiras (5 itens)
+    'lanterna_traseira', 'freio_breaklight', 'pisca_traseiro', 're', 'luz_placa',
+    
+    // Pneus (3 itens)
+    'pneus_dianteiro', 'pneus_traseiro', 'estepe',
+
+    // Limpador Para-Brisas (2 itens)
+    'limpador_dianteiro', 'limpador_traseiro'
+];
+
+// TOTAL de itens OBRIGATÓRIOS: 99 itens (com status)
+
+// Lista de TODOS os itens (incluindo Observações Gerais sem status)
+const todosItens = [...itensObrigatorios, 'observacoes_gerais'];
+
+// Array com todos os IDs dos campos de texto do cliente
+const textFieldIds = [
+    'nomeCliente', 'telefones', 'email', 'cpf', 'placa', 'fabricante',
+    'modelo', 'ano', 'motor', 'portas', 'combustivel', 'tanque',
+    'km', 'direcao', 'ar', 'cor', 'dataEntrada', 'numOrdem'
+];
+
+// Objeto para armazenar o status de cada item
+const statusData = {};
+// Objeto para armazenar as descrições dos técnicos
+const descricaoData = {};
+
+// ==================== SISTEMA DE LOGIN ====================
 
 async function handleLogin() {
     const userValue = document.getElementById('user').value;
@@ -41,8 +119,8 @@ async function handleLogin() {
             document.getElementById('main-content').style.display = 'block';
             document.getElementById('pass').value = "";
             
-            // Inicializar os campos de descrição
-            setTimeout(initializeDescricaoFields, 100);
+            // Inicializar os dados
+            initializeData();
             
             console.log("Login realizado com sucesso para:", result.userEmail);
         } else {
@@ -57,198 +135,54 @@ async function handleLogin() {
     }
 }
 
-// Array com todos os IDs dos itens
-const itemIds = [
-    // Avaliação Inicial
-    'dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria',
-    
-    // Motor
-    'condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo',
-    'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios',
-    'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor',
-    
-    // Arrefecimento
-    'condicao_fluido_arref', 'vazamentos_arref', 'mangueiras_arref',
-    'bomba_agua', 'radiador', 'tampa_arref', 'reservatorio', 'eletroventilador',
-    
-    // Freios
-    'condicao_fluido_freio', 'flexiveis_freio', 'pastilhas_dianteira',
-    'discos_dianteiro', 'tambor_disco_traseiro', 'pastilhas_sapata_traseira',
-    'cilindro_roda', 'pincas', 'cabos_freio', 'modulo_abs',
-    
-    // Direção
-    'condicao_fluido_direcao', 'bomba_hidraulica', 'caixa_direcao',
-    'mangueiras_direcao', 'coluna', 'terminal_direcao', 'barra_axial',
-    
-    // Transmissão
-    'condicao_fluido_transmissao', 'vazamentos_transmissao', 'diferencial_ruidos',
-    'caixa_transferencia_ruidos', 'coifas_transmissao', 'homocinetica',
-    'trizeta_tulipa', 'semi_eixos', 'coxim_diferencial', 'carda_folga_ruido',
-    'rolamento_cubo_dianteiro', 'rolamento_cubo_traseiro', 'bolachao_carda',
-    
-    // Coxins
-    'coxins_motor', 'coxins_cambio',
-    
-    // Suspensão Dianteira
-    'bieletas_dianteira', 'buchas_bandeja_inf', 'buchas_bandeja_sup',
-    'pivo_dianteiro', 'bucha_barra_estabilizadora', 'bucha_quadro_dianteira',
-    'amortecedores_dianteiros', 'coxim_suspensao', 'rolamento_peso_dianteiro',
-    'coifa_batente_dianteiro', 'mola_dianteira', 'calco_mola_dianteira',
-    
-    // Suspensão Traseira
-    'bucha_manga_eixo', 'bucha_bandeja_inferior', 'bucha_bandeja_superior',
-    'bucha_braco_tensor', 'braco_auxiliar_bucha_pivo', 'bucha_braco_oscilante',
-    'calco_mola_traseira', 'batente_mola', 'mola_traseira',
-    'coifa_batente_traseiro', 'coxim_amortecedor', 'amortecedor_traseiro',
-    'bieleta_traseira', 'bucha_barra_estabilizadora_traseira', 'barra_estabilizadora_traseira',
-    
-    // Lâmpadas
-    'farol_baixo', 'farol_alto', 'lanterna', 'neblina', 'pisca_dianteiro',
-    'drl', 'freio_breaklight', 'lanterna_traseira', 'pisca_traseiro', 're', 'luz_placa',
-    
-    // Pneus
-    'pneus_dianteiro', 'pneus_traseiro', 'estepe'
-];
+// ==================== INICIALIZAÇÃO DE DADOS ====================
 
-// Array com todos os IDs dos campos de texto
-const textFieldIds = [
-    'nomeCliente', 'telefones', 'email', 'cpf', 'placa', 'fabricante',
-    'modelo', 'ano', 'motor', 'portas', 'combustivel', 'tanque',
-    'km', 'direcao', 'ar', 'cor', 'dataEntrada', 'numOrdem'
-];
-
-// Objeto para armazenar o status de cada item
-const statusData = {};
-// Objeto para armazenar as descrições dos técnicos
-const descricaoData = {};
-
-// Função para inicializar campos de descrição
-function initializeDescricaoFields() {
-    console.log('Inicializando campos de descrição...');
+function initializeData() {
+    console.log('Inicializando dados...');
     
-    itemIds.forEach(id => {
-        // Inicializar dados
-        statusData[id] = null;
-        descricaoData[id] = '';
-        
-        // Encontrar ou criar campo de descrição
-        const descricaoInput = document.querySelector(`.descricao-input[data-id="descricao_${id}"]`);
-        if (descricaoInput) {
-            descricaoInput.addEventListener('input', function() {
-                descricaoData[id] = this.value.trim();
-            });
+    // Inicializar todos os itens
+    todosItens.forEach(id => {
+        if (id === 'observacoes_gerais') {
+            // Observações Gerais não tem status, apenas descrição
+            statusData[id] = null;
+        } else {
+            // Itens obrigatórios começam sem status
+            statusData[id] = null;
         }
+        descricaoData[id] = '';
     });
     
-    console.log('Campos de descrição inicializados:', itemIds.length);
-}
-
-// Sistema de mensagens
-function showMessage(text, isError = false) {
-    const messageDiv = isError ? document.getElementById('error') : document.getElementById('message');
-    const otherDiv = isError ? document.getElementById('message') : document.getElementById('error');
-    
-    messageDiv.textContent = text;
-    messageDiv.style.display = 'block';
-    otherDiv.style.display = 'none';
-    
-    if (!isError) {
-        setTimeout(() => {
-            messageDiv.style.display = 'none';
-        }, 5000);
-    }
-}
-
-// Sistema de progresso
-function toggleProgressBar(show, progress = 0) {
-    const progressBar = document.getElementById('progress-bar');
-    const progressFill = document.getElementById('progress-fill');
-    const progressText = document.getElementById('progress-text');
-    
-    if (show) {
-        progressBar.style.display = 'block';
-        progressFill.style.width = `${progress}%`;
-        progressText.textContent = `${Math.round(progress)}%`;
-    } else {
-        progressBar.style.display = 'none';
-    }
-}
-
-function updateProgressBar(progress) {
-    const progressFill = document.getElementById('progress-fill');
-    const progressText = document.getElementById('progress-text');
-    progressFill.style.width = `${progress}%`;
-    progressText.textContent = `${Math.round(progress)}%`;
-}
-
-// Sistema de botões
-function toggleButtons(disable) {
-    const buttons = document.querySelectorAll('button');
-    const checkboxes = document.querySelectorAll('.status-checkbox');
-    const textFields = document.querySelectorAll('input[type="text"], input[type="date"]');
-    const textareas = document.querySelectorAll('.descricao-input');
-    
-    buttons.forEach(button => {
-        button.disabled = disable;
-        button.style.opacity = disable ? '0.5' : '1';
-        button.style.cursor = disable ? 'not-allowed' : 'pointer';
+    // Configurar eventos nos checkboxes
+    document.querySelectorAll('.status-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('click', () => {
+            selectStatus(checkbox);
+        });
     });
     
-    checkboxes.forEach(checkbox => {
-        checkbox.style.pointerEvents = disable ? 'none' : 'auto';
-        checkbox.style.opacity = disable ? '0.5' : '1';
+    // Configurar eventos nos campos de descrição
+    document.querySelectorAll('.descricao-input').forEach(input => {
+        const id = input.getAttribute('data-id').replace('descricao_', '');
+        input.addEventListener('input', function() {
+            descricaoData[id] = this.value.trim();
+        });
     });
     
-    textFields.forEach(field => {
-        field.disabled = disable;
-        field.style.opacity = disable ? '0.5' : '1';
-        field.style.backgroundColor = disable ? '#f5f5f5' : 'white';
-    });
+    // Atualizar contadores
+    updateCounters();
     
-    textareas.forEach(textarea => {
-        textarea.disabled = disable;
-        textarea.style.opacity = disable ? '0.5' : '1';
-        textarea.style.backgroundColor = disable ? '#f5f5f5' : 'white';
-    });
-}
-
-// Modal de confirmação
-function openModal() {
-    document.getElementById('confirmModal').style.display = 'block';
-}
-
-function closeModal() {
-    document.getElementById('confirmModal').style.display = 'none';
-}
-
-function confirmSave() {
-    closeModal();
-    if (!isSaving) {
-        isSaving = true;
-        saveToGoogleSheetConfirmed();
-    }
-}
-
-// Sistema de status
-function updateCounters() {
-    let okCount = 0, atencaoCount = 0, criticoCount = 0;
+    // Iniciar verificação de status obrigatórios
+    verificarStatusObrigatorios();
     
-    itemIds.forEach(id => {
-        const status = statusData[id];
-        if (status === 'ok') okCount++;
-        else if (status === 'atencao') atencaoCount++;
-        else if (status === 'critico') criticoCount++;
-    });
+    // Configurar verificação periódica
+    setInterval(verificarStatusObrigatorios, 2000);
     
-    document.getElementById('count-ok').textContent = okCount;
-    document.getElementById('count-atencao').textContent = atencaoCount;
-    document.getElementById('count-critico').textContent = criticoCount;
+    console.log('Dados inicializados. Itens obrigatórios:', itensObrigatorios.length);
 }
+
+// ==================== SISTEMA DE STATUS ====================
 
 function selectStatus(checkbox) {
-    if (isSaving) {
-        return; // Não permite seleção se está salvando
-    }
+    if (isSaving) return;
     
     const itemId = checkbox.getAttribute('data-id');
     const status = checkbox.getAttribute('data-status');
@@ -281,43 +215,441 @@ function selectStatus(checkbox) {
     updateCounters();
 }
 
-// Sistema de limpeza
+function updateCounters() {
+    let okCount = 0, atencaoCount = 0, criticoCount = 0;
+    
+    itensObrigatorios.forEach(id => {
+        const status = statusData[id];
+        if (status === 'ok') okCount++;
+        else if (status === 'atencao') atencaoCount++;
+        else if (status === 'critico') criticoCount++;
+    });
+    
+    document.getElementById('count-ok').textContent = okCount;
+    document.getElementById('count-atencao').textContent = atencaoCount;
+    document.getElementById('count-critico').textContent = criticoCount;
+}
+
+// ==================== SISTEMA DE VERIFICAÇÃO DE OBRIGATORIEDADE ====================
+
+function verificarStatusObrigatorios() {
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent || mainContent.style.display === 'none') {
+        return;
+    }
+    
+    const itensNaoAvaliados = itensObrigatorios.filter(id => !statusData[id]);
+    const botaoSalvar = document.querySelector('button[onclick*="saveToGoogleSheet"]');
+    const totalObrigatorios = itensObrigatorios.length;
+    const itensAvaliados = totalObrigatorios - itensNaoAvaliados.length;
+    
+    if (botaoSalvar) {
+        if (itensNaoAvaliados.length > 0) {
+            botaoSalvar.style.opacity = '0.6';
+            botaoSalvar.title = itensNaoAvaliados.length + ' itens obrigatórios pendentes (' + itensAvaliados + '/' + totalObrigatorios + ')';
+            botaoSalvar.innerHTML = 'SALVAR (' + itensAvaliados + '/' + totalObrigatorios + ')';
+        } else {
+            botaoSalvar.style.opacity = '1';
+            botaoSalvar.title = 'Todos os 99 itens obrigatórios foram avaliados';
+            botaoSalvar.innerHTML = 'SALVAR NA PLANILHA ✓';
+        }
+    }
+    
+    // Contador de pendentes
+    let contadorPendentes = document.getElementById('count-pendentes');
+    
+    if (!contadorPendentes && itensNaoAvaliados.length > 0) {
+        contadorPendentes = document.createElement('div');
+        contadorPendentes.id = 'count-pendentes';
+        contadorPendentes.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ffc107;
+            color: #000;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            z-index: 999;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 14px;
+        `;
+        document.body.appendChild(contadorPendentes);
+    }
+    
+    if (contadorPendentes) {
+        if (itensNaoAvaliados.length > 0) {
+            contadorPendentes.textContent = itensNaoAvaliados.length + ' itens pendentes (' + itensAvaliados + '/' + totalObrigatorios + ')';
+            contadorPendentes.style.display = 'block';
+            
+            if (itensNaoAvaliados.length > 20) {
+                contadorPendentes.style.background = '#dc3545';
+                contadorPendentes.style.color = 'white';
+            } else if (itensNaoAvaliados.length > 10) {
+                contadorPendentes.style.background = '#ffc107';
+                contadorPendentes.style.color = '#000';
+            } else {
+                contadorPendentes.style.background = '#28a745';
+                contadorPendentes.style.color = 'white';
+            }
+        } else {
+            contadorPendentes.style.display = 'none';
+        }
+    }
+}
+
+// ==================== SISTEMA DE MENSAGENS ====================
+
+function showMessage(text, isError = false) {
+    const messageDiv = isError ? document.getElementById('error') : document.getElementById('message');
+    const otherDiv = isError ? document.getElementById('message') : document.getElementById('error');
+    
+    messageDiv.textContent = text;
+    messageDiv.style.display = 'block';
+    otherDiv.style.display = 'none';
+    
+    if (!isError) {
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// ==================== SISTEMA DE PROGRESSO ====================
+
+function createProgressBar() {
+    const progressContainer = document.createElement('div');
+    progressContainer.id = 'progress-bar';
+    progressContainer.className = 'progress-container';
+    progressContainer.style.cssText = `
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        z-index: 1000;
+        text-align: center;
+        min-width: 300px;
+    `;
+    
+    progressContainer.innerHTML = `
+        <div style="color: #333; margin-bottom: 15px; font-size: 18px;">Salvando dados...</div>
+        <div style="width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; margin: 20px 0; overflow: hidden;">
+            <div id="progress-fill" style="height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); border-radius: 10px; transition: width 0.3s ease; width: 0%;"></div>
+        </div>
+        <div id="progress-text" style="font-weight: bold; color: #333; margin-top: 10px;">0%</div>
+    `;
+    
+    document.body.appendChild(progressContainer);
+}
+
+function toggleProgressBar(show, progress = 0) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    
+    if (show) {
+        progressBar.style.display = 'block';
+        progressFill.style.width = `${progress}%`;
+        progressText.textContent = `${Math.round(progress)}%`;
+    } else {
+        progressBar.style.display = 'none';
+    }
+}
+
+function updateProgressBar(progress) {
+    const progressFill = document.getElementById('progress-fill');
+    const progressText = document.getElementById('progress-text');
+    progressFill.style.width = `${progress}%`;
+    progressText.textContent = `${Math.round(progress)}%`;
+}
+
+// ==================== SISTEMA DE BOTÕES ====================
+
+function toggleButtons(disable) {
+    const buttons = document.querySelectorAll('button');
+    const checkboxes = document.querySelectorAll('.status-checkbox');
+    const textFields = document.querySelectorAll('input[type="text"], input[type="date"]');
+    const textareas = document.querySelectorAll('.descricao-input');
+    
+    buttons.forEach(button => {
+        button.disabled = disable;
+        button.style.opacity = disable ? '0.5' : '1';
+        button.style.cursor = disable ? 'not-allowed' : 'pointer';
+    });
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.style.pointerEvents = disable ? 'none' : 'auto';
+        checkbox.style.opacity = disable ? '0.5' : '1';
+    });
+    
+    textFields.forEach(field => {
+        field.disabled = disable;
+        field.style.opacity = disable ? '0.5' : '1';
+        field.style.backgroundColor = disable ? '#f5f5f5' : 'white';
+    });
+    
+    textareas.forEach(textarea => {
+        textarea.disabled = disable;
+        textarea.style.opacity = disable ? '0.5' : '1';
+        textarea.style.backgroundColor = disable ? '#f5f5f5' : 'white';
+    });
+}
+
+// ==================== SISTEMA DE MODAL ====================
+
+function openModal() {
+    document.getElementById('confirmModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+}
+
+function confirmSave() {
+    closeModal();
+    if (!isSaving) {
+        isSaving = true;
+        saveToGoogleSheetConfirmed();
+    }
+}
+
+// ==================== SISTEMA DE LIMPEZA ====================
+
 function clearAllFields() {
-    // Limpar campos de texto
+    // Limpar campos de texto do cliente
     textFieldIds.forEach(fieldId => {
         const field = document.getElementById(fieldId);
         if (field) field.value = '';
     });
 
-    // Limpar status
-    itemIds.forEach(id => {
-        statusData[id] = null;
-        descricaoData[id] = '';
+    // Limpar status e descrições
+    todosItens.forEach(id => {
+        if (id !== 'observacoes_gerais') {
+            statusData[id] = null;
+            
+            // Limpar checkboxes
+            document.querySelectorAll(`.status-checkbox[data-id="${id}"]`).forEach(cb => {
+                cb.classList.remove('checked');
+            });
+        }
         
-        // Limpar checkboxes
-        document.querySelectorAll(`.status-checkbox[data-id="${id}"]`).forEach(cb => {
-            cb.classList.remove('checked');
-        });
+        descricaoData[id] = '';
         
         // Limpar campos de descrição
         const descricaoInput = document.querySelector(`.descricao-input[data-id="descricao_${id}"]`);
         if (descricaoInput) {
             descricaoInput.value = '';
-            descricaoInput.style.borderLeft = '';
+            if (id !== 'observacoes_gerais') {
+                descricaoInput.style.borderLeft = '';
+            }
         }
     });
     
     updateCounters();
+    verificarStatusObrigatorios();
 }
 
-// ==================== SISTEMA DE PDF AUTOMÁTICO ====================
+function clearForm() {
+    if (isSaving) {
+        showMessage('Aguarde o término da operação atual.', true);
+        return;
+    }
+    
+    if (confirm('Deseja realmente limpar todo o formulário? Os dados não salvos serão perdidos.')) {
+        clearAllFields();
+        showMessage('Formulário limpo com sucesso!');
+    }
+}
+
+// ==================== SISTEMA DE SALVAMENTO ====================
+
+async function saveToGoogleSheet() {
+    // Evitar múltiplos cliques
+    if (isSaving) {
+        showMessage('Aguarde o salvamento anterior ser concluído.', true);
+        return;
+    }
+
+    // Verificar campos obrigatórios básicos
+    const camposObrigatorios = ['placa', 'modelo', 'dataEntrada', 'numOrdem'];
+    let camposFaltando = [];
+    
+    camposObrigatorios.forEach(campo => {
+        const valor = document.getElementById(campo).value.trim();
+        if (!valor) {
+            camposFaltando.push(campo);
+        }
+    });
+    
+    if (camposFaltando.length > 0) {
+        showMessage('Preencha os campos obrigatórios: ' + camposFaltando.join(', '), true);
+        return;
+    }
+    
+    // Verificar os 99 itens obrigatórios
+    let itensNaoAvaliados = [];
+    itensObrigatorios.forEach(id => {
+        if (!statusData[id]) {
+            itensNaoAvaliados.push(id);
+        }
+    });
+    
+    // Exibir erro se algum item obrigatório não foi avaliado
+    if (itensNaoAvaliados.length > 0) {
+        showMessage('ATENÇÃO: ' + itensNaoAvaliados.length + ' itens obrigatórios não foram avaliados! É necessário avaliar todos os itens do checklist antes de salvar.', true);
+        
+        // Rolagem automática para o primeiro item não avaliado
+        if (itensNaoAvaliados.length > 0) {
+            const primeiroId = itensNaoAvaliados[0];
+            const elementoPrimeiroItem = document.querySelector('.status-checkbox[data-id="' + primeiroId + '"]');
+            if (elementoPrimeiroItem) {
+                elementoPrimeiroItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const itemContainer = elementoPrimeiroItem.closest('.item');
+                if (itemContainer) {
+                    itemContainer.style.backgroundColor = '#fff3cd';
+                    itemContainer.style.border = '2px solid #ffc107';
+                    itemContainer.style.borderRadius = '8px';
+                    setTimeout(() => {
+                        itemContainer.style.backgroundColor = '';
+                        itemContainer.style.border = '';
+                    }, 5000);
+                }
+            }
+        }
+        return;
+    }
+    
+    openModal();
+}
+
+async function saveToGoogleSheetConfirmed() {
+    try {
+        toggleProgressBar(true, 10);
+        toggleButtons(true);
+        showMessage('Preparando dados para salvar...', false);
+        
+        // Preparar dados do cliente
+        updateProgressBar(20);
+        const clientData = {};
+        textFieldIds.forEach(fieldId => {
+            const element = document.getElementById(fieldId);
+            clientData[fieldId] = element ? element.value : '';
+        });
+
+        // Preparar dados do checklist
+        updateProgressBar(40);
+        const checklistData = {};
+        
+        todosItens.forEach(id => {
+            const status = statusData[id];
+            const descricao = descricaoData[id] || '';
+            
+            // Se for Observações Gerais (sem status)
+            if (id === 'observacoes_gerais') {
+                if (descricao) {
+                    checklistData[id] = '📝 ' + descricao;
+                } else {
+                    checklistData[id] = '';
+                }
+            } 
+            // Se for item com status (99 itens obrigatórios)
+            else {
+                let emojiTexto = '';
+                if (status === 'ok') emojiTexto = '🟢 OK';
+                else if (status === 'atencao') emojiTexto = '🟡 ATENÇÃO';
+                else if (status === 'critico') emojiTexto = '🔴 CRÍTICO';
+                
+                // Se há descrição, adicionar após o status
+                if (descricao) {
+                    checklistData[id] = emojiTexto + ' - ' + descricao;
+                } else {
+                    checklistData[id] = emojiTexto;
+                }
+            }
+        });
+
+        // Combinar todos os dados
+        updateProgressBar(60);
+        const allData = {
+            ...clientData,
+            ...checklistData,
+            timestamp: new Date().toLocaleString('pt-BR'),
+            tecnico_logado: document.getElementById('user-display').innerText,
+            total_ok: document.getElementById('count-ok').textContent,
+            total_atencao: document.getElementById('count-atencao').textContent,
+            total_critico: document.getElementById('count-critico').textContent
+        };
+        
+        console.log('Dados a serem enviados:', {
+            cliente: clientData.nomeCliente,
+            placa: clientData.placa,
+            itensObrigatorios: itensObrigatorios.length,
+            itensSalvos: Object.keys(checklistData).length
+        });
+        
+        showMessage('Enviando dados para o servidor...', false);
+        updateProgressBar(80);
+        
+        // Enviar para Google Sheets
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(allData)
+        });
+        
+        updateProgressBar(100);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        toggleProgressBar(false);
+        
+        showMessage('✓ Dados salvos com sucesso! Gerando comprovante...');
+        
+        // Gerar PDF
+        const dadosParaPDF = {
+            ...allData
+        };
+        
+        // Adicionar descrições separadas para o PDF
+        todosItens.forEach(id => {
+            dadosParaPDF['descricao_' + id] = descricaoData[id] || '';
+        });
+        
+        // GERAR PDF AUTOMATICAMENTE
+        const pdfGerado = await generateComprovantePDF(dadosParaPDF);
+        
+        if (pdfGerado) {
+            showComprovanteSuccess();
+        }
+        
+        // Limpar formulário após sucesso
+        setTimeout(() => {
+            clearAllFields();
+            showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
+        }, 3000);
+        
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        showMessage('Erro ao salvar dados. Verifique a conexão.', true);
+    } finally {
+        toggleProgressBar(false);
+        toggleButtons(false);
+        isSaving = false;
+    }
+}
+
+// ==================== SISTEMA DE PDF ====================
 
 async function generateComprovantePDF(dadosSalvos) {
     return new Promise((resolve) => {
         try {
             if (typeof jsPDF === 'undefined') {
-                console.error('Biblioteca jsPDF não carregada');
-                // Tentar carregar dinamicamente
                 const script = document.createElement('script');
                 script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
                 script.onload = () => createComprovantePDF(dadosSalvos).then(resolve);
@@ -333,7 +665,7 @@ async function generateComprovantePDF(dadosSalvos) {
             createComprovantePDF(dadosSalvos).then(resolve);
             
         } catch (error) {
-            console.error('Erro ao iniciar geração de PDF:', error);
+            console.error('Erro ao gerar PDF:', error);
             showComprovanteTela(dadosSalvos);
             resolve();
         }
@@ -393,7 +725,7 @@ async function createComprovantePDF(dados) {
         pdf.setFontSize(8);
         pdf.text(`Gerado em: ${dataGeracao}`, pageWidth - margin, 12, { align: 'right' });
 
-        // 3. SEÇÃO: INFORMAÇÕES DO CLIENTE / VEÍCULO
+        // 3. INFORMAÇÕES DO CLIENTE / VEÍCULO
         pdf.setTextColor(0);
         pdf.setFontSize(11);
         pdf.setFont('helvetica', 'bold');
@@ -442,7 +774,16 @@ async function createComprovantePDF(dados) {
 
         yPos += 4;
 
-        // 4. DETALHAMENTO DA INSPEÇÃO COM DESCRIÇÕES
+        // 4. DETALHAMENTO DA INSPEÇÃO
+        pdf.setFontSize(11);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('DETALHAMENTO DA INSPEÇÃO', margin, yPos);
+        yPos += 2;
+        pdf.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 6;
+
+        pdf.setFontSize(8.5);
+        
         const categorias = {
             "AVALIAÇÃO INICIAL": ['dtc_motor', 'dtc_transmissao', 'dtc_seguranca', 'dtc_carroceria'],
             "MOTOR": ['condicao_bateria', 'alternador', 'terminal_bateria', 'vazamento_oleo', 'velas_ignicao', 'bobinas_cabos', 'correia_dentada', 'correia_acessorios', 'rolamentos_polias', 'tbi', 'condicao_nivel_oleo', 'filtro_ar_motor'],
@@ -453,19 +794,14 @@ async function createComprovantePDF(dados) {
             "COXINS": ['coxins_motor', 'coxins_cambio'],
             "SUSPENSÃO DIANTEIRA": ['bieletas_dianteira', 'buchas_bandeja_inf', 'buchas_bandeja_sup', 'pivo_dianteiro', 'bucha_barra_estabilizadora', 'bucha_quadro_dianteira', 'amortecedores_dianteiros', 'coxim_suspensao', 'rolamento_peso_dianteiro', 'coifa_batente_dianteiro', 'mola_dianteira', 'calco_mola_dianteira'],
             "SUSPENSÃO TRASEIRA": ['bucha_manga_eixo', 'bucha_bandeja_inferior', 'bucha_bandeja_superior', 'bucha_braco_tensor', 'braco_auxiliar_bucha_pivo', 'bucha_braco_oscilante', 'calco_mola_traseira', 'batente_mola', 'mola_traseira', 'coifa_batente_traseiro', 'coxim_amortecedor', 'amortecedor_traseiro', 'bieleta_traseira', 'bucha_barra_estabilizadora_traseira', 'barra_estabilizadora_traseira'],
-            "LÂMPADAS": ['farol_baixo', 'farol_alto', 'lanterna', 'neblina', 'pisca_dianteiro', 'drl', 'freio_breaklight', 'lanterna_traseira', 'pisca_traseiro', 're', 'luz_placa'],
-            "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe']
+            "LÂMPADAS DIANTEIRAS": ['farol_baixo', 'farol_alto', 'lanterna_dianteira', 'neblina', 'pisca_dianteiro', 'drl'],
+            "LÂMPADAS TRASEIRAS": ['lanterna_traseira', 'freio_breaklight', 'pisca_traseiro', 're', 'luz_placa'],
+            "PNEUS": ['pneus_dianteiro', 'pneus_traseiro', 'estepe'],
+            "LIMPADOR PARA-BRISAS": ['limpador_dianteiro', 'limpador_traseiro'],
+            "OBSERVAÇÕES GERAIS": ['observacoes_gerais']
         };
 
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('DETALHAMENTO DA INSPEÇÃO', margin, yPos);
-        yPos += 2;
-        pdf.line(margin, yPos, pageWidth - margin, yPos);
-        yPos += 6;
-
-        pdf.setFontSize(8.5);
-        for (const [titulo, ids] of Object.entries(categorias)) {
+        const renderCategoria = (titulo, ids) => {
             if (yPos > 270) { 
                 pdf.addPage(); 
                 yPos = 20; 
@@ -482,7 +818,13 @@ async function createComprovantePDF(dados) {
                     yPos = 20; 
                 }
                 
-                let currentX = (index % 2 === 0) ? margin + 5 : 110;
+                let currentX = margin + 5;
+                let isObservacoes = (titulo === "OBSERVAÇÕES GERAIS");
+                
+                if (!isObservacoes) {
+                    currentX = (index % 2 === 0) ? margin + 5 : 110;
+                }
+                
                 const statusTexto = dados[id] || ''; 
                 let prefixo = '[   ]', r=150, g=150, b=150;
 
@@ -502,21 +844,19 @@ async function createComprovantePDF(dados) {
                 pdf.text(prefixo, currentX, yPos);
                 pdf.setTextColor(0, 0, 0); 
                 
-                const itemLabel = id.replace(/_/g, ' ').toUpperCase();
+                const itemLabel = getNomeAmigavelItem(id);
                 pdf.text(itemLabel, currentX + 12, yPos);
                 
-                // Adicionar descrição se existir
-                const descricaoKey = `descricao_${id}`;
+                const descricaoKey = 'descricao_' + id;
                 if (dados[descricaoKey] && dados[descricaoKey].trim()) {
                     yPos += 3.5;
                     pdf.setFontSize(7);
                     pdf.setTextColor(80, 80, 80);
                     pdf.setFont('helvetica', 'italic');
                     
-                    // Quebrar descrição longa
                     const descricao = dados[descricaoKey];
-                    const maxWidth = 90;
-                    let lines = pdf.splitTextToSize(`Observação: ${descricao}`, maxWidth);
+                    const maxWidth = isObservacoes ? 180 : 90;
+                    let lines = pdf.splitTextToSize((isObservacoes ? 'Observações: ' : 'Observação: ') + descricao, maxWidth);
                     
                     lines.forEach(line => {
                         if (yPos > 280) { 
@@ -530,11 +870,15 @@ async function createComprovantePDF(dados) {
                     pdf.setFontSize(8.5);
                 }
                 
-                if (index % 2 !== 0 || index === ids.length - 1) {
+                if (index % 2 !== 0 || index === ids.length - 1 || isObservacoes) {
                     yPos += 5;
                 }
             });
             yPos += 2;
+        };
+
+        for (const [titulo, ids] of Object.entries(categorias)) {
+            renderCategoria(titulo, ids);
         }
 
         // 5. RESUMO TOTALIZADOR
@@ -583,7 +927,7 @@ async function createComprovantePDF(dados) {
         pdf.text('Assinatura do Responsável Técnico', pageWidth / 2, yPos + 15, { align: 'center' });
 
         // Nome do arquivo
-        const nomeArquivo = `Checklist_${dados.nomeCliente || 'Cliente'}_${dados.placa || 'SemPlaca'}.pdf`;
+        const nomeArquivo = 'Checklist_' + (dados.nomeCliente || 'Cliente') + '_' + (dados.placa || 'SemPlaca') + '.pdf';
         pdf.save(nomeArquivo);
 
         return true;
@@ -591,6 +935,30 @@ async function createComprovantePDF(dados) {
         console.error("Erro ao gerar PDF:", error);
         return false;
     }
+}
+
+function getNomeAmigavelItem(id) {
+    const nomes = {
+        'farol_baixo': 'FAROL BAIXO',
+        'farol_alto': 'FAROL ALTO',
+        'lanterna_dianteira': 'LANTERNA DIANTEIRA',
+        'neblina': 'FAROL NEBLINA',
+        'pisca_dianteiro': 'PISCA DIANTEIRO',
+        'drl': 'DRL (LUZ DE DIA)',
+        'lanterna_traseira': 'LANTERNA TRASEIRA',
+        'freio_breaklight': 'LUZ DE FREIO',
+        'pisca_traseiro': 'PISCA TRASEIRO',
+        're': 'LUZ DE RÉ',
+        'luz_placa': 'LUZ DA PLACA',
+        'pneus_dianteiro': 'PNEUS DIANTEIROS',
+        'pneus_traseiro': 'PNEUS TRASEIROS',
+        'estepe': 'ESTEPE',
+        'limpador_dianteiro': 'LIMPADOR DIANTEIRO',
+        'limpador_traseiro': 'LIMPADOR TRASEIRO',
+        'observacoes_gerais': 'OBSERVAÇÕES GERAIS'
+    };
+    
+    return nomes[id] || id.replace(/_/g, ' ').toUpperCase();
 }
 
 function showComprovanteTela(dados) {
@@ -627,104 +995,6 @@ function showComprovanteTela(dados) {
             ✓ INSPEÇÃO REGISTRADA COM SUCESSO
         </div>
         
-        <div style="border-top: 2px solid #ccc; padding-top: 20px; margin: 20px 0;">
-            <h3 style="text-align: center;">DADOS DO CLIENTE</h3>
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin: 20px;">
-                <div><strong>CLIENTE:</strong></div>
-                <div>${dados.nomeCliente || 'Não informado'}</div>
-                
-                <div><strong>PLACA:</strong></div>
-                <div>${dados.placa || 'Não informada'}</div>
-                
-                <div><strong>VEÍCULO:</strong></div>
-                <div>${dados.fabricante || ''} ${dados.modelo || ''} ${dados.ano || ''}</div>
-                
-                <div><strong>DATA ENTRADA:</strong></div>
-                <div>${dados.dataEntrada || new Date().toLocaleDateString('pt-BR')}</div>
-                
-                <div><strong>ORDEM SERVIÇO:</strong></div>
-                <div>${dados.numOrdem || 'Não informado'}</div>
-                
-                <div><strong>TÉCNICO RESPONSÁVEL:</strong></div>
-                <div>${dados.tecnico_logado || 'Não informado'}</div>
-            </div>
-        </div>
-        
-        <div style="border-top: 2px solid #ccc; padding-top: 20px; margin: 20px 0;">
-            <h3 style="text-align: center;">RESUMO DA AVALIAÇÃO</h3>
-            <div style="display: flex; justify-content: center; gap: 20px; margin: 30px 0;">
-                <div style="background: #2ecc71; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
-                    <div style="font-size: 24px;">✓</div>
-                    <div style="font-weight: bold;">CONFORME</div>
-                    <div>${dados.total_ok || 0} itens</div>
-                </div>
-                
-                <div style="background: #f1c40f; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
-                    <div style="font-size: 24px;">⚠</div>
-                    <div style="font-weight: bold;">ATENÇÃO</div>
-                    <div>${dados.total_atencao || 0} itens</div>
-                </div>
-                
-                <div style="background: #e74c3c; color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 100px;">
-                    <div style="font-size: 24px;">✗</div>
-                    <div style="font-weight: bold;">CRÍTICO</div>
-                    <div>${dados.total_critico || 0} itens</div>
-                </div>
-            </div>
-        </div>
-        
-        ${parseInt(dados.total_critico) > 0 ? `
-        <div style="border: 2px solid #e74c3c; padding: 15px; border-radius: 8px; margin: 20px 0; background: #ffebee;">
-            <h4 style="color: #e74c3c; margin-top: 0;">⚠ ATENÇÃO: ITENS CRÍTICOS DETECTADOS</h4>
-            <ul style="margin: 10px 0;">
-                ${(() => {
-                    let items = '';
-                    let count = 0;
-                    itemIds.forEach(id => {
-                        const status = dados[id];
-                        if (status && status.includes('🔴') && count < 5) {
-                            const label = id.replace(/_/g, ' ').toUpperCase();
-                            const descricao = dados[`descricao_${id}`] || '';
-                            items += `<li><strong>${label}:</strong> ${descricao || 'Sem descrição'}</li>`;
-                            count++;
-                        }
-                    });
-                    return items;
-                })()}
-            </ul>
-        </div>
-        ` : ''}
-        
-        ${(() => {
-            let itemsComDescricao = '';
-            let count = 0;
-            itemIds.forEach(id => {
-                const descricao = dados[`descricao_${id}`];
-                if (descricao && descricao.trim() && count < 10) {
-                    const label = id.replace(/_/g, ' ').toUpperCase();
-                    itemsComDescricao += `<li><strong>${label}:</strong> ${descricao}</li>`;
-                    count++;
-                }
-            });
-            
-            if (itemsComDescricao) {
-                return `
-                <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin: 20px 0; background: #f9f9f9;">
-                    <h4 style="color: #333; margin-top: 0;">📝 OBSERVAÇÕES DO TÉCNICO</h4>
-                    <ul style="margin: 10px 0;">
-                        ${itemsComDescricao}
-                    </ul>
-                </div>
-                `;
-            }
-            return '';
-        })()}
-        
-        <div style="border-top: 1px solid #ccc; padding-top: 20px; margin-top: 30px; font-size: 12px; color: #666;">
-            <p><em>Este comprovante serve como registro oficial da inspeção realizada.</em></p>
-            <p><em>Recomenda-se a correção dos itens críticos e de atenção identificados.</em></p>
-        </div>
-        
         <div style="text-align: center; margin-top: 40px;">
             <button onclick="imprimirComprovante()" style="background: #2196F3; color: white; border: none; padding: 12px 30px; border-radius: 4px; font-size: 16px; cursor: pointer; margin-right: 10px;">
                 🖨️ Imprimir
@@ -732,11 +1002,6 @@ function showComprovanteTela(dados) {
             <button onclick="fecharComprovante()" style="background: #666; color: white; border: none; padding: 12px 30px; border-radius: 4px; font-size: 16px; cursor: pointer;">
                 ✕ Fechar
             </button>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 11px; color: #999;">
-            <p>Checklist Veicular • Sistema de Inspeção Automotiva</p>
-            <p>Comprovante válido como registro técnico</p>
         </div>
     `;
     
@@ -811,7 +1076,6 @@ function showComprovanteSuccess() {
         }
     }, 5000);
     
-    // Adicionar estilos CSS para animações
     if (!document.querySelector('#comprovante-styles')) {
         const style = document.createElement('style');
         style.id = 'comprovante-styles';
@@ -829,229 +1093,17 @@ function showComprovanteSuccess() {
     }
 }
 
-// ==================== SISTEMA DE SALVAMENTO ====================
+// ==================== INICIALIZAÇÃO DA PÁGINA ====================
 
-async function saveToGoogleSheet() {
-    // Evitar múltiplos cliques
-    if (isSaving) {
-        showMessage('Aguarde o salvamento anterior ser concluído.', true);
-        return;
-    }
-
-    // Verificar campos obrigatórios
-    const camposObrigatorios = ['placa', 'modelo', 'dataEntrada', 'numOrdem'];
-    let camposFaltando = [];
-    
-    camposObrigatorios.forEach(campo => {
-        const valor = document.getElementById(campo).value.trim();
-        if (!valor) {
-            camposFaltando.push(campo);
-        }
-    });
-    
-    // Verificar se pelo menos um status foi selecionado
-    let statusSelecionados = 0;
-    itemIds.forEach(id => {
-        if (statusData[id]) {
-            statusSelecionados++;
-        }
-    });
-    
-    if (camposFaltando.length > 0) {
-        showMessage(`Preencha os campos obrigatórios: ${camposFaltando.join(', ')}`, true);
-        return;
-    }
-    
-    if (statusSelecionados === 0) {
-        showMessage('Selecione pelo menos um item no checklist', true);
-        return;
-    }
-    
-    openModal();
-}
-
-async function saveToGoogleSheetConfirmed() {
-    try {
-        toggleProgressBar(true, 10);
-        toggleButtons(true);
-        showMessage('Preparando dados para salvar...', false);
-        
-        // Preparar dados do cliente
-        updateProgressBar(20);
-        const clientData = {};
-        textFieldIds.forEach(fieldId => {
-            const element = document.getElementById(fieldId);
-            clientData[fieldId] = element ? element.value : '';
-        });
-
-        // Preparar dados do checklist COM DESCRIÇÃO JUNTA
-        updateProgressBar(40);
-        const checklistData = {};
-        
-        itemIds.forEach(id => {
-            const status = statusData[id];
-            const descricao = descricaoData[id] || '';
-            
-            // Se não há status selecionado, usar "NÃO AVALIADO"
-            if (!status) {
-                checklistData[id] = 'NÃO AVALIADO';
-                return;
-            }
-            
-            // Determinar emoji e texto baseado no status
-            let emojiTexto = '';
-            if (status === 'ok') emojiTexto = '🟢 OK';
-            else if (status === 'atencao') emojiTexto = '🟡 ATENÇÃO';
-            else if (status === 'critico') emojiTexto = '🔴 CRÍTICO';
-            
-            // Se há descrição, adicionar após o status
-            if (descricao) {
-                checklistData[id] = `${emojiTexto} - ${descricao}`;
-            } else {
-                checklistData[id] = emojiTexto;
-            }
-        });
-
-        // Combinar todos os dados
-        updateProgressBar(60);
-        const allData = {
-            ...clientData,
-            ...checklistData,
-            timestamp: new Date().toLocaleString('pt-BR'),
-            tecnico_logado: document.getElementById('user-display').innerText,
-            total_ok: document.getElementById('count-ok').textContent,
-            total_atencao: document.getElementById('count-atencao').textContent,
-            total_critico: document.getElementById('count-critico').textContent
-        };
-        
-        // Log para debug
-        console.log('Dados a serem enviados para o Google Sheets:');
-        console.log('Cliente:', clientData.nomeCliente, 'Placa:', clientData.placa);
-        console.log('Itens com status e descrição:', 
-            Object.entries(checklistData)
-                .filter(([key, value]) => !value.includes('NÃO AVALIADO'))
-                .map(([key, value]) => `${key}: ${value}`)
-        );
-        
-        showMessage('Enviando dados para o servidor...', false);
-        updateProgressBar(80);
-        
-        // Enviar para Google Sheets
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(allData)
-        });
-        
-        updateProgressBar(100);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        toggleProgressBar(false);
-        
-        showMessage('✓ Dados salvos com sucesso! Gerando comprovante...');
-        
-        // Preparar dados para o PDF (mantendo separado para o PDF)
-        const dadosParaPDF = {
-            ...allData,
-            // Adicionar descrições separadas para o PDF
-            ...Object.fromEntries(
-                itemIds.map(id => [`descricao_${id}`, descricaoData[id] || ''])
-            )
-        };
-        
-        // GERAR PDF AUTOMATICAMENTE
-        const pdfGerado = await generateComprovantePDF(dadosParaPDF);
-        
-        if (pdfGerado) {
-            showComprovanteSuccess();
-        }
-        
-        // Limpar formulário após sucesso
-        setTimeout(() => {
-            clearAllFields();
-            showMessage('Formulário limpo automaticamente. Pronto para novo checklist!');
-        }, 3000);
-        
-    } catch (error) {
-        console.error('Erro ao salvar:', error);
-        showMessage('Erro ao salvar dados. Verifique a conexão.', true);
-    } finally {
-        toggleProgressBar(false);
-        toggleButtons(false);
-        isSaving = false;
-    }
-}
-
-// Limpar formulário
-function clearForm() {
-    if (isSaving) {
-        showMessage('Aguarde o término da operação atual.', true);
-        return;
-    }
-    
-    if (confirm('Deseja realmente limpar todo o formulário? Os dados não salvos serão perdidos.')) {
-        clearAllFields();
-        showMessage('Formulário limpo com sucesso!');
-    }
-}
-
-// ==================== INICIALIZAÇÃO ====================
-
-function createProgressBar() {
-    const progressContainer = document.createElement('div');
-    progressContainer.id = 'progress-bar';
-    progressContainer.className = 'progress-container';
-    progressContainer.style.cssText = `
-        display: none;
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 30px;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        z-index: 1000;
-        text-align: center;
-        min-width: 300px;
-    `;
-    
-    progressContainer.innerHTML = `
-        <div style="color: #333; margin-bottom: 15px; font-size: 18px;">Salvando dados...</div>
-        <div style="width: 100%; height: 20px; background: #e0e0e0; border-radius: 10px; margin: 20px 0; overflow: hidden;">
-            <div id="progress-fill" style="height: 100%; background: linear-gradient(90deg, #4CAF50, #8BC34A); border-radius: 10px; transition: width 0.3s ease; width: 0%;"></div>
-        </div>
-        <div id="progress-text" style="font-weight: bold; color: #333; margin-top: 10px;">0%</div>
-    `;
-    
-    document.body.appendChild(progressContainer);
-}
-
-// Inicialização da página
+// Inicialização quando o DOM está carregado
 window.addEventListener('DOMContentLoaded', () => {
-    // Inicializar statusData
-    itemIds.forEach(id => {
-        statusData[id] = null;
-        descricaoData[id] = '';
-    });
-    
     // Criar barra de progresso
     createProgressBar();
     
-    // Adicionar event listeners aos checkboxes
-    document.querySelectorAll('.status-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('click', () => selectStatus(checkbox));
-    });
+    // Mostrar mensagem inicial
+    showMessage('Sistema pronto. Faça login para começar.');
     
-    // Inicializar campos de descrição
-    setTimeout(initializeDescricaoFields, 500);
-    
-    // Atualizar contadores inicialmente
-    updateCounters();
-    
-    showMessage('Formulário pronto para uso. Selecione o status para cada item.');
+    console.log('Sistema inicializado. Itens obrigatórios:', itensObrigatorios.length);
 });
 
 // Atalhos de teclado
@@ -1075,7 +1127,7 @@ window.addEventListener('beforeunload', (e) => {
     const hasData = textFieldIds.some(fieldId => {
         const element = document.getElementById(fieldId);
         return element && element.value.trim() !== '';
-    }) || itemIds.some(id => statusData[id]);
+    }) || itensObrigatorios.some(id => statusData[id]);
     
     if (hasData) {
         e.preventDefault();
@@ -1084,9 +1136,10 @@ window.addEventListener('beforeunload', (e) => {
     }
 });
 
-// Adicionar timeout de segurança
+// Timeout de segurança
 setTimeout(() => {
-    const progressBarVisible = document.getElementById('progress-bar')?.style.display === 'block';
+    const progressBarVisible = document.getElementById('progress-bar') && 
+                              document.getElementById('progress-bar').style.display === 'block';
     
     if (isSaving && progressBarVisible) {
         console.log('Safety timeout: Reativando interface...');
