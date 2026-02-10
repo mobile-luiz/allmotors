@@ -1,5 +1,5 @@
 // Configuração - SUBSTITUA COM SUA URL DO APPS SCRIPT
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxwkbUiUGtu-nEA7xYwAZF5ZYVXyLoXvKrKlxx8mTbgU3IxvbcKgjzEl49k-o-OcT8l/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_wyZJH0vNDwM5SwhmbkujP2YChYs6CqjSMqCdbQEfiGmGKcSiL7w4cpyyXYZOxSTz/exec';
 
 // Sistema de cache para evitar múltiplos envios
 let isSaving = false;
@@ -1149,3 +1149,5 @@ setTimeout(() => {
         showMessage('Interface reativada automaticamente.', false);
     }
 }, 30000);
+
+
